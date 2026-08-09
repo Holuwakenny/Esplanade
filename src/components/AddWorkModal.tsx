@@ -1,14 +1,15 @@
-import React, { useState } from "react";
-import { X, Plus, AlertCircle } from "lucide-react";
-import { WorkStatus, WorkPriority } from "../types";
+import React, { useState, useEffect } from "react";
+import { X, Plus, Building, Layers } from "lucide-react";
+import { WorkStatus, WorkPriority, SitesMap } from "../types";
 
 interface AddWorkModalProps {
   isOpen: boolean;
   onClose: () => void;
-  units: string[];
-  floors: string[];
+  sites: SitesMap;
+  currentSite: string;
   trades: string[];
   onAdd: (
+    siteName: string,
     unit: string,
     floor: string,
     area: string,
@@ -23,14 +24,31 @@ interface AddWorkModalProps {
 export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   isOpen,
   onClose,
-  units,
-  floors,
+  sites,
+  currentSite,
   trades,
   onAdd,
 }) => {
-  const [unit, setUnit] = useState<string>(units[0] || "Unit 1");
+  const siteList = Object.keys(sites);
+  const [selectedSite, setSelectedSite] = useState<string>(
+    currentSite || siteList[0] || "Esplanade 6"
+  );
+  const [customSite, setCustomSite] = useState("");
+
+  const siteData = sites[selectedSite] || {};
+  const availableUnits = Object.keys(siteData);
+
+  const [unit, setUnit] = useState<string>(availableUnits[0] || "Unit 1");
   const [customUnit, setCustomUnit] = useState("");
-  const [floor, setFloor] = useState<string>(floors[0] || "Ground Floor");
+
+  const unitFloors =
+    siteData[unit] && Object.keys(siteData[unit]).length > 0
+      ? Object.keys(siteData[unit])
+      : ["Ground Floor", "First Floor", "Second Floor", "General"];
+
+  const [floor, setFloor] = useState<string>(unitFloors[0] || "Ground Floor");
+  const [customFloor, setCustomFloor] = useState("");
+
   const [area, setArea] = useState("");
   const [work, setWork] = useState("");
   const [trade, setTrade] = useState("Tiler");
@@ -39,29 +57,84 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   const [priority, setPriority] = useState<WorkPriority>("Medium");
   const [notes, setNotes] = useState("");
 
+  useEffect(() => {
+    if (isOpen) {
+      const initialSite = currentSite && sites[currentSite] ? currentSite : siteList[0] || "Esplanade 6";
+      setSelectedSite(initialSite);
+      const units = Object.keys(sites[initialSite] || {});
+      const initialUnit = units[0] || "Unit 1";
+      setUnit(initialUnit);
+
+      const floors = sites[initialSite]?.[initialUnit]
+        ? Object.keys(sites[initialSite][initialUnit])
+        : ["Ground Floor", "First Floor", "Second Floor", "General"];
+      setFloor(floors[0] || "Ground Floor");
+    }
+  }, [isOpen, currentSite]);
+
   if (!isOpen) return null;
+
+  const handleSiteChange = (newSite: string) => {
+    setSelectedSite(newSite);
+    if (newSite !== "ADD_NEW_SITE") {
+      const newSiteUnits = Object.keys(sites[newSite] || {});
+      const firstUnit = newSiteUnits[0] || "Unit 1";
+      setUnit(firstUnit);
+
+      const firstUnitFloors = sites[newSite]?.[firstUnit]
+        ? Object.keys(sites[newSite][firstUnit])
+        : ["Ground Floor", "First Floor", "Second Floor", "General"];
+      setFloor(firstUnitFloors[0] || "Ground Floor");
+    }
+  };
+
+  const handleUnitChange = (newUnit: string) => {
+    setUnit(newUnit);
+    if (newUnit !== "ADD_NEW_UNIT") {
+      const uFloors = sites[selectedSite]?.[newUnit]
+        ? Object.keys(sites[selectedSite][newUnit])
+        : ["Ground Floor", "First Floor", "Second Floor", "General"];
+      setFloor(uFloors[0] || "Ground Floor");
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalSite = selectedSite === "ADD_NEW_SITE" ? customSite.trim() : selectedSite;
     const finalUnit = unit === "ADD_NEW_UNIT" ? customUnit.trim() : unit;
+    const finalFloor = floor === "ADD_NEW_FLOOR" ? customFloor.trim() : floor;
     const finalTrade = trade === "Other" ? customTrade || "General" : trade;
-    if (!finalUnit || !area.trim() || !work.trim()) return;
 
-    onAdd(finalUnit, floor, area.trim(), work.trim(), finalTrade, status, priority, notes.trim());
+    if (!finalSite || !finalUnit || !finalFloor || !area.trim() || !work.trim()) return;
+
+    onAdd(
+      finalSite,
+      finalUnit,
+      finalFloor,
+      area.trim(),
+      work.trim(),
+      finalTrade,
+      status,
+      priority,
+      notes.trim()
+    );
     setArea("");
     setWork("");
     setNotes("");
+    setCustomSite("");
     setCustomUnit("");
+    setCustomFloor("");
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150">
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-2xs overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col my-auto overflow-hidden animate-in fade-in duration-150">
+        {/* Fixed Header */}
+        <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-lg">Add New Outstanding Work</h3>
+            <h3 className="font-bold text-base sm:text-lg">Add New Work Item</h3>
           </div>
           <button
             onClick={onClose}
@@ -71,28 +144,65 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs sm:text-sm">
-          <div className="grid grid-cols-2 gap-3">
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs sm:text-sm">
+          {/* Site / Category Selector & Manual Input */}
+          <div>
+            <label className="block font-bold text-slate-800 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Building className="w-4 h-4 text-indigo-600" /> Site / Project Name *
+              </span>
+              <span className="text-xs font-normal text-indigo-600">Select existing or type custom</span>
+            </label>
+            <select
+              value={selectedSite}
+              onChange={(e) => handleSiteChange(e.target.value)}
+              className="w-full p-2.5 bg-indigo-50/60 border border-indigo-200 rounded-lg text-slate-900 font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            >
+              {siteList.map((s) => (
+                <option key={s} value={s}>
+                  {s} {s === "Esplanade 6" ? "(6 Units × 3 Floors)" : s === "EGC3" ? "(4 Units × 8 Floors)" : ""}
+                </option>
+              ))}
+              <option value="ADD_NEW_SITE">+ Type New Custom Site Name...</option>
+            </select>
+
+            {selectedSite === "ADD_NEW_SITE" && (
+              <input
+                type="text"
+                required
+                placeholder="Type site name (e.g. Victoria Island Tower A)"
+                value={customSite}
+                onChange={(e) => setCustomSite(e.target.value)}
+                className="w-full mt-2 p-2.5 border border-indigo-300 rounded-lg bg-indigo-50/30 text-slate-900 font-semibold focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+              />
+            )}
+          </div>
+
+          {/* Unit & Floor Grid with Manual Input Support */}
+          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200/80">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Unit</label>
+              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5 text-slate-500" /> Unit *
+              </label>
               <select
                 value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50/80 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                onChange={(e) => handleUnitChange(e.target.value)}
+                className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               >
-                {units.map((u) => (
+                {availableUnits.map((u) => (
                   <option key={u} value={u}>
                     {u}
                   </option>
                 ))}
-                <option value="ADD_NEW_UNIT">+ Add New Unit...</option>
+                <option value="ADD_NEW_UNIT">+ Custom Unit...</option>
               </select>
 
               {unit === "ADD_NEW_UNIT" && (
                 <input
                   type="text"
                   required
-                  placeholder="Enter new unit name (e.g. Unit 7)"
+                  placeholder="e.g. Unit 12 / Suite 4B"
                   value={customUnit}
                   onChange={(e) => setCustomUnit(e.target.value)}
                   className="w-full mt-2 p-2 border border-indigo-300 rounded-lg bg-indigo-50/30 text-slate-800 focus:outline-none focus:bg-white"
@@ -101,18 +211,32 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Floor</label>
+              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5 text-slate-500" /> Floor *
+              </label>
               <select
                 value={floor}
                 onChange={(e) => setFloor(e.target.value)}
-                className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50/80 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               >
-                {floors.map((f) => (
+                {unitFloors.map((f) => (
                   <option key={f} value={f}>
                     {f}
                   </option>
                 ))}
+                <option value="ADD_NEW_FLOOR">+ Custom Floor...</option>
               </select>
+
+              {floor === "ADD_NEW_FLOOR" && (
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 3rd Floor / Mezzanine"
+                  value={customFloor}
+                  onChange={(e) => setCustomFloor(e.target.value)}
+                  className="w-full mt-2 p-2 border border-indigo-300 rounded-lg bg-indigo-50/30 text-slate-800 focus:outline-none focus:bg-white"
+                />
+              )}
             </div>
           </div>
 
@@ -121,7 +245,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
             <input
               type="text"
               required
-              placeholder="e.g. Guest Toilet, Kitchen Entrance, Staircase"
+              placeholder="e.g. Guest Toilet, Kitchen Entrance, Balcony"
               value={area}
               onChange={(e) => setArea(e.target.value)}
               className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50/80 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -208,7 +332,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <div className="sticky bottom-0 bg-white pt-3 pb-1 border-t border-slate-100 flex items-center justify-end gap-2 shadow-xs">
             <button
               type="button"
               onClick={onClose}
@@ -218,9 +342,10 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow-xs transition-colors cursor-pointer"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              Add Work Item
+              <Plus className="w-4 h-4" />
+              <span>Add Work Item</span>
             </button>
           </div>
         </form>

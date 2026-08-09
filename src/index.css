@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@media print {
+  /* Hide everything on the page by default in print mode */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Show only the printable report element and its children */
+  #printable-report-doc,
+  #printable-report-doc * {
+    visibility: visible !important;
+  }
+
+  /* Position printable report at the top of page */
+  #printable-report-doc {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  /* Force print background colors & borders */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    margin: 12mm;
+    size: portrait;
+  }
+}

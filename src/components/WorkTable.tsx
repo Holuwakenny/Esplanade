@@ -1,333 +1,989 @@
-import React from "react";
-import { Trash2, Plus, Copy, CheckCircle, AlertTriangle } from "lucide-react";
-import { SiteTrackerData, WorkItem, FilterState, WorkStatus, WorkPriority } from "../types";
+import React, { useState } from "react";
+import { Trash2, Plus, Camera, Building, Layers, Flame, AlertTriangle, Activity, ArrowDown, MessageSquare, X, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { SitesMap, WorkItem, FilterState, WorkStatus, WorkPriority } from "../types";
 
 interface WorkTableProps {
-  data: SiteTrackerData;
+  sitesData: SitesMap;
+  allSitesList?: string[];
+  activeSiteName: string;
   filters: FilterState;
-  onUpdateItem: (unit: string, floor: string, index: number, field: keyof WorkItem, value: string) => void;
-  onRemoveItem: (unit: string, floor: string, index: number) => void;
-  onDuplicateItem: (unit: string, floor: string, index: number) => void;
-  onAddQuickItem: (unit: string, floor: string) => void;
-  onBatchCompleteFloor: (unit: string, floor: string) => void;
+  onUpdateItem: (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number,
+    field: keyof WorkItem,
+    value: string
+  ) => void;
+  onMoveItemSite?: (
+    fromSite: string,
+    toSite: string,
+    unit: string,
+    floor: string,
+    index: number
+  ) => void;
+  onMoveItemUnit?: (
+    siteName: string,
+    fromUnit: string,
+    toUnit: string,
+    floor: string,
+    index: number
+  ) => void;
+  onMoveItemFloor?: (
+    siteName: string,
+    unit: string,
+    fromFloor: string,
+    toFloor: string,
+    index: number
+  ) => void;
+  onRemoveItem: (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number
+  ) => void;
+  onAddQuickItem: (siteName: string, unit: string, floor: string) => void;
+  onOpenPhotos: (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number,
+    item: WorkItem
+  ) => void;
 }
 
-export const WorkTable: React.FC<WorkTableProps> = ({
-  data,
-  filters,
-  onUpdateItem,
-  onRemoveItem,
-  onDuplicateItem,
-  onAddQuickItem,
-  onBatchCompleteFloor,
-}) => {
-  const units = Object.keys(data).filter(
-    (u) => filters.unit === "all" || filters.unit === u
-  );
+interface FlatRow {
+  siteName: string;
+  unitName: string;
+  floorName: string;
+  realIndex: number;
+  item: WorkItem;
+}
 
-  let totalVisibleItems = 0;
+const DEFAULT_FLOORS = [
+  "Ground Floor",
+  "First Floor",
+  "Second Floor",
+  "Third Floor",
+  "Fourth Floor",
+  "Fifth Floor",
+  "Sixth Floor",
+  "Seventh Floor",
+  "Eighth Floor",
+  "General",
+];
+
+const formatDate = (dateStr?: string) => {
+  if (!dateStr) return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const parsed = new Date(dateStr);
+  if (isNaN(parsed.getTime())) return dateStr;
+  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+// Priority Badge Component with Color-Coded Icons
+export const PriorityBadge: React.FC<{
+  priority?: WorkPriority;
+  onChange?: (newPriority: WorkPriority) => void;
+}> = ({ priority = "Medium", onChange }) => {
+  const getPriorityStyle = (p: WorkPriority) => {
+    switch (p) {
+      case "Critical":
+        return {
+          bg: "bg-rose-100 text-rose-800 border-rose-300 ring-rose-500/20",
+          icon: <Flame className="w-3.5 h-3.5 text-rose-600 shrink-0 animate-pulse" />,
+          label: "Critical",
+        };
+      case "High":
+        return {
+          bg: "bg-amber-100 text-amber-900 border-amber-300 ring-amber-500/20",
+          icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />,
+          label: "High",
+        };
+      case "Medium":
+        return {
+          bg: "bg-sky-50 text-sky-800 border-sky-200 ring-sky-500/20",
+          icon: <Activity className="w-3.5 h-3.5 text-sky-600 shrink-0" />,
+          label: "Medium",
+        };
+      case "Low":
+      default:
+        return {
+          bg: "bg-slate-100 text-slate-700 border-slate-200 ring-slate-500/20",
+          icon: <ArrowDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />,
+          label: "Low",
+        };
+    }
+  };
+
+  const style = getPriorityStyle((priority || "Medium") as WorkPriority);
+
+  if (!onChange) {
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${style.bg}`}>
+        {style.icon}
+        <span>{style.label}</span>
+      </span>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {units.map((unitName) => {
-        const unitData = data[unitName] || {};
-        const floors = Object.keys(unitData).filter(
-          (f) => filters.floor === "all" || filters.floor === f
-        );
+    <div className="relative inline-block w-full">
+      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border shadow-2xs ${style.bg}`}>
+        {style.icon}
+        <select
+          value={priority}
+          onChange={(e) => onChange(e.target.value as WorkPriority)}
+          className="bg-transparent text-current font-bold focus:outline-none cursor-pointer w-full text-xs"
+        >
+          <option value="Critical" className="bg-white text-rose-700 font-bold">
+            🔥 Critical
+          </option>
+          <option value="High" className="bg-white text-amber-700 font-bold">
+            ⚠️ High
+          </option>
+          <option value="Medium" className="bg-white text-sky-700 font-bold">
+            ⚡ Medium
+          </option>
+          <option value="Low" className="bg-white text-slate-700 font-bold">
+            🔽 Low
+          </option>
+        </select>
+      </div>
+    </div>
+  );
+};
 
-        // Compute unit statistics
-        let unitTotal = 0;
-        let unitCompleted = 0;
-        Object.values(unitData).forEach((rawFloorItems) => {
-          const items = rawFloorItems as WorkItem[];
-          items.forEach((item) => {
-            unitTotal++;
-            if (item.status === "Completed") unitCompleted++;
+export const WorkTable: React.FC<WorkTableProps> = ({
+  sitesData,
+  allSitesList = [],
+  activeSiteName,
+  filters,
+  onUpdateItem,
+  onMoveItemSite,
+  onMoveItemUnit,
+  onMoveItemFloor,
+  onRemoveItem,
+  onAddQuickItem,
+  onOpenPhotos,
+}) => {
+  // Track open comment modal/popover row key
+  const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+
+  // Determine sites to render
+  let sitesToRender: string[] = [];
+  if (filters.site === "all") {
+    sitesToRender = Object.keys(sitesData);
+  } else if (sitesData[filters.site]) {
+    sitesToRender = [filters.site];
+  } else if (sitesData[activeSiteName]) {
+    sitesToRender = [activeSiteName];
+  } else {
+    sitesToRender = Object.keys(sitesData).slice(0, 1);
+  }
+
+  const siteListOptions = allSitesList.length > 0 ? allSitesList : Object.keys(sitesData);
+
+  return (
+    <div className="space-y-8">
+      {sitesToRender.map((siteName) => {
+        const siteData = sitesData[siteName] || {};
+
+        let siteTotal = 0;
+        let siteCompleted = 0;
+
+        const flatRows: FlatRow[] = [];
+
+        Object.entries(siteData).forEach(([unitName, unitFloors]) => {
+          if (filters.unit !== "all" && filters.unit !== unitName) return;
+
+          Object.entries(unitFloors).forEach(([floorName, items]) => {
+            if (filters.floor !== "all" && filters.floor !== floorName) return;
+
+            items.forEach((item, realIndex) => {
+              siteTotal++;
+              if (item.status === "Completed") siteCompleted++;
+
+              if (filters.status !== "all" && item.status !== filters.status) return;
+              if (filters.trade !== "all" && item.trade !== filters.trade) return;
+              if (filters.priority && filters.priority !== "all" && (item.priority || "Medium") !== filters.priority) return;
+
+              // Date filtering
+              if (filters.dateFilter !== "all" && item.updatedAt) {
+                const itemDate = new Date(item.updatedAt);
+                if (!isNaN(itemDate.getTime())) {
+                  const now = new Date();
+                  if (filters.dateFilter === "today") {
+                    const isSameDay =
+                      itemDate.getFullYear() === now.getFullYear() &&
+                      itemDate.getMonth() === now.getMonth() &&
+                      itemDate.getDate() === now.getDate();
+                    if (!isSameDay) return;
+                  } else if (filters.dateFilter === "this_week") {
+                    const diffMs = now.getTime() - itemDate.getTime();
+                    const diffDays = diffMs / (1000 * 3600 * 24);
+                    if (diffDays < 0 || diffDays > 7) return;
+                  } else if (filters.dateFilter === "this_month") {
+                    const isSameMonth =
+                      itemDate.getFullYear() === now.getFullYear() &&
+                      itemDate.getMonth() === now.getMonth();
+                    if (!isSameMonth) return;
+                  } else if (filters.dateFilter === "custom") {
+                    if (filters.startDate) {
+                      const start = new Date(filters.startDate);
+                      start.setHours(0, 0, 0, 0);
+                      if (itemDate < start) return;
+                    }
+                    if (filters.endDate) {
+                      const end = new Date(filters.endDate);
+                      end.setHours(23, 59, 59, 999);
+                      if (itemDate > end) return;
+                    }
+                  }
+                }
+              }
+
+              // Search check
+              if (filters.search) {
+                const q = filters.search.toLowerCase();
+                const matchArea = (item.area || "").toLowerCase().includes(q);
+                const matchWork = (item.work || "").toLowerCase().includes(q);
+                const matchTrade = (item.trade || "").toLowerCase().includes(q);
+                const matchUnit = unitName.toLowerCase().includes(q);
+                const matchFloor = floorName.toLowerCase().includes(q);
+                const matchNotes = (item.notes || "").toLowerCase().includes(q);
+                if (!matchArea && !matchWork && !matchTrade && !matchUnit && !matchFloor && !matchNotes) {
+                  return;
+                }
+              }
+
+              flatRows.push({
+                siteName,
+                unitName,
+                floorName,
+                realIndex,
+                item,
+              });
+            });
           });
         });
-        const unitPct = unitTotal > 0 ? Math.round((unitCompleted / unitTotal) * 100) : 0;
+
+        const sitePct = siteTotal > 0 ? Math.round((siteCompleted / siteTotal) * 100) : 0;
+
+        const availableUnits = Array.from(
+          new Set([
+            ...Object.keys(siteData),
+            "Unit 1",
+            "Unit 2",
+            "Unit 3",
+            "Unit 4",
+            "Unit 5",
+            "Unit 6",
+          ])
+        );
+
+        const defaultUnit =
+          filters.unit !== "all"
+            ? filters.unit
+            : Object.keys(siteData)[0] || "Unit 1";
+        const defaultFloor =
+          filters.floor !== "all" ? filters.floor : "Ground Floor";
 
         return (
-          <div
-            key={unitName}
-            className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
-          >
-            {/* Unit Header */}
-            <div className="bg-slate-900 px-5 py-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-white">
+          <div key={siteName} className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+            {/* Header Bar for Site Category */}
+            <div className="bg-slate-900 px-4 sm:px-5 py-3 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
               <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-white tracking-tight">
-                  {unitName}
-                </h2>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-indigo-300">
-                  {unitCompleted} / {unitTotal} Completed
-                </span>
+                <div className="p-2 bg-indigo-600/30 border border-indigo-400/30 rounded-lg">
+                  <Building className="w-5 h-5 text-indigo-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                      Site Category: <span className="text-indigo-300">{siteName}</span>
+                    </h2>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700">
+                      {flatRows.length} Items Listed
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {siteCompleted} of {siteTotal} Total Completed ({sitePct}%)
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <div className="flex items-center gap-2 flex-1 sm:w-36">
-                  <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                <div className="flex items-center gap-2">
+                  <div className="w-24 sm:w-32 bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
                     <div
                       className="bg-emerald-400 h-full rounded-full transition-all"
-                      style={{ width: `${unitPct}%` }}
+                      style={{ width: `${sitePct}%` }}
                     />
                   </div>
-                  <span className="text-xs font-bold text-slate-300">{unitPct}%</span>
+                  <span className="text-xs font-bold text-emerald-300">{sitePct}%</span>
                 </div>
+
+                <button
+                  onClick={() => onAddQuickItem(siteName, defaultUnit, defaultFloor)}
+                  className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs min-h-[36px]"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Row</span>
+                </button>
               </div>
             </div>
 
-            {/* Floors */}
-            <div className="divide-y divide-slate-200/80">
-              {floors.map((floorName) => {
-                const rawItems = unitData[floorName] || [];
+            {/* DESKTOP TABLE VIEW (md and up) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1050px] text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider text-[11px]">
+                    <th className="p-3 w-10 text-center border-r border-slate-200/80 whitespace-nowrap">#</th>
+                    <th className="p-3 w-40 border-r border-slate-200/80 whitespace-nowrap">Area / Location</th>
+                    <th className="p-3 border-r border-slate-200/80 min-w-[240px] whitespace-nowrap">Outstanding Work & Comments</th>
+                    <th className="p-3 w-32 border-r border-slate-200/80 whitespace-nowrap">Trade</th>
+                    <th className="p-3 w-28 border-r border-slate-200/80 whitespace-nowrap">Unit</th>
+                    <th className="p-3 w-32 border-r border-slate-200/80 whitespace-nowrap">Floor</th>
+                    <th className="p-3 w-32 border-r border-slate-200/80 whitespace-nowrap">Priority</th>
+                    <th className="p-3 w-32 border-r border-slate-200/80 whitespace-nowrap">Status</th>
+                    <th className="p-3 w-24 border-r border-slate-200/80 whitespace-nowrap">Date</th>
+                    <th className="p-3 w-28 border-r border-slate-200/80 whitespace-nowrap">Site</th>
+                    <th className="p-3 w-28 text-center whitespace-nowrap">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/80 bg-white">
+                  {flatRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="p-8 text-center text-slate-500 bg-slate-50/50">
+                        <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                          <Layers className="w-8 h-8 text-slate-300" />
+                          <p className="font-semibold text-slate-600">No work items found</p>
+                          <p className="text-xs text-slate-400">
+                            No items match the current filter selection for {siteName}.
+                          </p>
+                          <button
+                            onClick={() => onAddQuickItem(siteName, defaultUnit, defaultFloor)}
+                            className="mt-2 text-xs font-semibold px-3 py-1.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add First Row to {siteName}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    flatRows.map((flat, idx) => {
+                      const { siteName: currentSite, unitName, floorName, realIndex, item } = flat;
+                      const floorOptions = Array.from(new Set([...DEFAULT_FLOORS, floorName]));
+                      const rowKey = `${currentSite}-${unitName}-${floorName}-${realIndex}`;
+                      const isEditingNote = editingNoteKey === rowKey;
 
-                // Filter items by status, trade, and search keyword
-                const filteredItems = rawItems.filter((item) => {
-                  if (filters.status !== "all" && item.status !== filters.status) return false;
-                  if (filters.trade !== "all" && item.trade !== filters.trade) return false;
-                  if (filters.search) {
-                    const q = filters.search.toLowerCase();
-                    const matchArea = item.area.toLowerCase().includes(q);
-                    const matchWork = item.work.toLowerCase().includes(q);
-                    const matchTrade = item.trade.toLowerCase().includes(q);
-                    const matchNotes = (item.notes || "").toLowerCase().includes(q);
-                    if (!matchArea && !matchWork && !matchTrade && !matchNotes) return false;
-                  }
-                  return true;
-                });
-
-                totalVisibleItems += filteredItems.length;
-
-                return (
-                  <div key={floorName} className="p-4 sm:p-5">
-                    {/* Floor Header Bar */}
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                        {floorName}
-                        <span className="text-xs font-medium text-slate-400">
-                          ({filteredItems.length} items)
-                        </span>
-                      </h3>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => onBatchCompleteFloor(unitName, floorName)}
-                          className="text-xs px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-medium transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                          title="Mark all items on this floor as completed"
+                      return (
+                        <tr
+                          key={item.id || rowKey}
+                          className="hover:bg-indigo-50/20 transition-colors group align-top"
                         >
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                          Mark Floor Complete
+                          {/* 1. No. */}
+                          <td className="p-2.5 text-center text-slate-500 font-semibold border-r border-slate-100">
+                            {idx + 1}
+                          </td>
+
+                          {/* 2. Area / Location */}
+                          <td className="p-1.5 border-r border-slate-100 whitespace-normal break-words">
+                            <textarea
+                              rows={2}
+                              value={item.area}
+                              onChange={(e) =>
+                                onUpdateItem(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  realIndex,
+                                  "area",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full p-1.5 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent focus:border-indigo-400 rounded text-slate-800 focus:outline-none transition-all font-semibold text-xs whitespace-pre-wrap break-words resize-y"
+                              placeholder="Area / Location..."
+                            />
+                          </td>
+
+                          {/* 3. Outstanding Work & Redesigned Comments/Notes */}
+                          <td className="p-1.5 border-r border-slate-100 space-y-2 whitespace-normal break-words">
+                            <textarea
+                              rows={2}
+                              value={item.work}
+                              onChange={(e) =>
+                                onUpdateItem(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  realIndex,
+                                  "work",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full p-1.5 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent focus:border-indigo-400 rounded text-slate-900 font-medium focus:outline-none transition-all text-xs whitespace-pre-wrap break-words resize-y"
+                              placeholder="Outstanding work description..."
+                            />
+
+                            {/* Comment / Note Preview Box */}
+                            {item.notes && !isEditingNote && (
+                              <div className="p-2 bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/90 rounded-lg text-amber-950 text-xs shadow-2xs space-y-1 group/note transition-all">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 border-b border-amber-200/60 pb-1">
+                                  <span className="flex items-center gap-1">
+                                    <MessageSquare className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                    Site Note / Comment
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNoteKey(rowKey)}
+                                    className="text-amber-800 hover:text-amber-950 underline font-semibold cursor-pointer text-[10px]"
+                                  >
+                                    Edit Note
+                                  </button>
+                                </div>
+                                <p className="whitespace-pre-wrap break-words text-slate-800 font-normal leading-relaxed text-xs">
+                                  "{item.notes}"
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Comment / Note Full Expanded Editor */}
+                            {isEditingNote && (
+                              <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-300 shadow-xs space-y-2">
+                                <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                                  <span className="flex items-center gap-1.5">
+                                    <MessageSquare className="w-4 h-4 text-amber-700 shrink-0" />
+                                    Add / Edit Site Comment
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNoteKey(null)}
+                                    className="text-slate-500 hover:text-slate-800 p-0.5 rounded cursor-pointer"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <textarea
+                                  rows={3}
+                                  value={item.notes || ""}
+                                  autoFocus
+                                  onChange={(e) =>
+                                    onUpdateItem(
+                                      currentSite,
+                                      unitName,
+                                      floorName,
+                                      realIndex,
+                                      "notes",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Type artisan notes, instructions, or inspection observations..."
+                                  className="w-full bg-white text-xs p-2 border border-amber-300 rounded-md text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 whitespace-pre-wrap break-words font-sans"
+                                />
+                                <div className="flex items-center justify-between pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onUpdateItem(currentSite, unitName, floorName, realIndex, "notes", "");
+                                      setEditingNoteKey(null);
+                                    }}
+                                    className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold underline cursor-pointer"
+                                  >
+                                    Clear Note
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNoteKey(null)}
+                                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-md transition-colors cursor-pointer"
+                                  >
+                                    Save Note
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {!item.notes && !isEditingNote && (
+                              <button
+                                type="button"
+                                onClick={() => setEditingNoteKey(rowKey)}
+                                className="text-[11px] text-slate-400 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                <span>+ Add Comment</span>
+                              </button>
+                            )}
+                          </td>
+
+                          {/* 4. Trade / Artisan */}
+                          <td className="p-1.5 border-r border-slate-100 whitespace-normal break-words">
+                            <textarea
+                              rows={2}
+                              value={item.trade}
+                              onChange={(e) =>
+                                onUpdateItem(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  realIndex,
+                                  "trade",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full p-1.5 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent focus:border-indigo-400 rounded text-slate-700 focus:outline-none transition-all font-medium text-xs whitespace-pre-wrap break-words resize-y"
+                              placeholder="Trade..."
+                            />
+                          </td>
+
+                          {/* 5. Unit */}
+                          <td className="p-1.5 border-r border-slate-100">
+                            <select
+                              value={unitName}
+                              onChange={(e) =>
+                                onMoveItemUnit &&
+                                onMoveItemUnit(
+                                  currentSite,
+                                  unitName,
+                                  e.target.value,
+                                  floorName,
+                                  realIndex
+                                )
+                              }
+                              className="w-full p-1 border rounded text-xs font-semibold bg-slate-50 hover:bg-white text-slate-800 border-slate-200 focus:outline-none focus:border-indigo-400 cursor-pointer transition-all"
+                            >
+                              {availableUnits.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* 6. Floor */}
+                          <td className="p-1.5 border-r border-slate-100">
+                            <select
+                              value={floorName}
+                              onChange={(e) =>
+                                onMoveItemFloor &&
+                                onMoveItemFloor(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  e.target.value,
+                                  realIndex
+                                )
+                              }
+                              className="w-full p-1 border rounded text-xs font-semibold bg-slate-50 hover:bg-white text-slate-800 border-slate-200 focus:outline-none focus:border-indigo-400 cursor-pointer transition-all"
+                            >
+                              {floorOptions.map((f) => (
+                                <option key={f} value={f}>
+                                  {f}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* 7. Priority Badge Selector */}
+                          <td className="p-1.5 border-r border-slate-100">
+                            <PriorityBadge
+                              priority={item.priority || "Medium"}
+                              onChange={(newP) =>
+                                onUpdateItem(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  realIndex,
+                                  "priority",
+                                  newP
+                                )
+                              }
+                            />
+                          </td>
+
+                          {/* 8. Status */}
+                          <td className="p-1.5 border-r border-slate-100">
+                            <select
+                              value={item.status}
+                              onChange={(e) =>
+                                onUpdateItem(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  realIndex,
+                                  "status",
+                                  e.target.value as WorkStatus
+                                )
+                              }
+                              className={`w-full p-1.5 border rounded text-xs font-bold focus:outline-none cursor-pointer transition-all ${
+                                item.status === "Completed"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                  : item.status === "In Progress"
+                                  ? "bg-amber-50 text-amber-900 border-amber-300"
+                                  : "bg-slate-100 text-slate-800 border-slate-300"
+                              }`}
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Completed">Completed</option>
+                            </select>
+                          </td>
+
+                          {/* 9. Date */}
+                          <td className="p-2 border-r border-slate-100 text-slate-500 font-medium whitespace-nowrap text-[11px]">
+                            {formatDate(item.updatedAt)}
+                          </td>
+
+                          {/* 10. Site */}
+                          <td className="p-1.5 border-r border-slate-100">
+                            <select
+                              value={currentSite}
+                              onChange={(e) =>
+                                onMoveItemSite &&
+                                onMoveItemSite(
+                                  currentSite,
+                                  e.target.value,
+                                  unitName,
+                                  floorName,
+                                  realIndex
+                                )
+                              }
+                              className="w-full p-1 border rounded text-[11px] font-semibold bg-slate-50 hover:bg-white text-slate-800 border-slate-200 focus:outline-none cursor-pointer transition-all"
+                            >
+                              {siteListOptions.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* 11. Action Buttons */}
+                          <td className="p-1.5 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Comments trigger */}
+                              <button
+                                onClick={() =>
+                                  setEditingNoteKey(isEditingNote ? null : rowKey)
+                                }
+                                className={`p-1.5 rounded text-xs border transition-all cursor-pointer ${
+                                  item.notes
+                                    ? "bg-amber-100 text-amber-800 border-amber-300 font-bold"
+                                    : "text-slate-400 hover:text-slate-700 border-slate-200 hover:bg-slate-50"
+                                }`}
+                                title="Add/Edit Comments & Notes"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Camera trigger */}
+                              <button
+                                onClick={() =>
+                                  onOpenPhotos(
+                                    currentSite,
+                                    unitName,
+                                    floorName,
+                                    realIndex,
+                                    item
+                                  )
+                                }
+                                className={`p-1.5 rounded text-xs flex items-center gap-1 border transition-all cursor-pointer ${
+                                  item.photos && item.photos.length > 0
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200 font-bold"
+                                    : "text-slate-400 hover:text-slate-700 border-slate-200 hover:bg-slate-50"
+                                }`}
+                                title="Snap / Attach Photos"
+                              >
+                                <Camera className="w-3.5 h-3.5" />
+                                {item.photos && item.photos.length > 0 && (
+                                  <span className="text-[10px]">{item.photos.length}</span>
+                                )}
+                              </button>
+
+                              {/* Delete trigger */}
+                              <button
+                                onClick={() =>
+                                  onRemoveItem(currentSite, unitName, floorName, realIndex)
+                                }
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                                title="Remove row"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE CARD VIEW (sm and below) */}
+            <div className="block md:hidden p-3 space-y-3 bg-slate-50/60">
+              {flatRows.length === 0 ? (
+                <div className="p-6 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
+                  <p className="font-semibold text-slate-700">No work items found</p>
+                  <p className="text-xs text-slate-400 mt-1">Try resetting filters or adding a row.</p>
+                </div>
+              ) : (
+                flatRows.map((flat, idx) => {
+                  const { siteName: currentSite, unitName, floorName, realIndex, item } = flat;
+                  const rowKey = `m-${currentSite}-${unitName}-${floorName}-${realIndex}`;
+                  const isEditingNote = editingNoteKey === rowKey;
+                  const floorOptions = Array.from(new Set([...DEFAULT_FLOORS, floorName]));
+
+                  return (
+                    <div
+                      key={item.id || rowKey}
+                      className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 space-y-3"
+                    >
+                      {/* Top Bar: Item #, Priority Badge, Status Dropdown */}
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center border border-slate-200">
+                            #{idx + 1}
+                          </span>
+                          <PriorityBadge
+                            priority={item.priority || "Medium"}
+                            onChange={(newP) =>
+                              onUpdateItem(
+                                currentSite,
+                                unitName,
+                                floorName,
+                                realIndex,
+                                "priority",
+                                newP
+                              )
+                            }
+                          />
+                        </div>
+
+                        {/* Status selector */}
+                        <select
+                          value={item.status}
+                          onChange={(e) =>
+                            onUpdateItem(
+                              currentSite,
+                              unitName,
+                              floorName,
+                              realIndex,
+                              "status",
+                              e.target.value as WorkStatus
+                            )
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
+                            item.status === "Completed"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                              : item.status === "In Progress"
+                              ? "bg-amber-50 text-amber-900 border-amber-300"
+                              : "bg-slate-100 text-slate-800 border-slate-300"
+                          }`}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Completed">Completed</option>
+                        </select>
+                      </div>
+
+                      {/* Card Inputs: Area & Work */}
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-400">Area / Location</label>
+                          <input
+                            type="text"
+                            value={item.area}
+                            onChange={(e) =>
+                              onUpdateItem(
+                                currentSite,
+                                unitName,
+                                floorName,
+                                realIndex,
+                                "area",
+                                e.target.value
+                              )
+                            }
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-bold focus:bg-white"
+                            placeholder="e.g. Guest Toilet"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-400">Outstanding Work</label>
+                          <textarea
+                            rows={2}
+                            value={item.work}
+                            onChange={(e) =>
+                              onUpdateItem(
+                                currentSite,
+                                unitName,
+                                floorName,
+                                realIndex,
+                                "work",
+                                e.target.value
+                              )
+                            }
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-medium focus:bg-white"
+                            placeholder="Work description..."
+                          />
+                        </div>
+                      </div>
+
+                      {/* Unit, Floor & Trade Row */}
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-400">Unit</label>
+                          <select
+                            value={unitName}
+                            onChange={(e) =>
+                              onMoveItemUnit &&
+                              onMoveItemUnit(
+                                currentSite,
+                                unitName,
+                                e.target.value,
+                                floorName,
+                                realIndex
+                              )
+                            }
+                            className="w-full p-1.5 border border-slate-200 rounded-lg bg-slate-50 font-semibold"
+                          >
+                            {availableUnits.map((u) => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-400">Floor</label>
+                          <select
+                            value={floorName}
+                            onChange={(e) =>
+                              onMoveItemFloor &&
+                              onMoveItemFloor(
+                                currentSite,
+                                unitName,
+                                floorName,
+                                e.target.value,
+                                realIndex
+                              )
+                            }
+                            className="w-full p-1.5 border border-slate-200 rounded-lg bg-slate-50 font-semibold"
+                          >
+                            {floorOptions.map((f) => (
+                              <option key={f} value={f}>{f}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-400">Trade</label>
+                          <input
+                            type="text"
+                            value={item.trade}
+                            onChange={(e) =>
+                              onUpdateItem(
+                                currentSite,
+                                unitName,
+                                floorName,
+                                realIndex,
+                                "trade",
+                                e.target.value
+                              )
+                            }
+                            className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Comments / Notes */}
+                      <div>
+                        {item.notes && !isEditingNote ? (
+                          <div
+                            onClick={() => setEditingNoteKey(rowKey)}
+                            className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-900 flex items-center justify-between cursor-pointer"
+                          >
+                            <span className="italic flex items-center gap-1.5">
+                              <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              "{item.notes}"
+                            </span>
+                            <span className="text-[10px] text-amber-700 font-bold underline">Edit</span>
+                          </div>
+                        ) : isEditingNote ? (
+                          <div className="bg-amber-50 p-2 rounded-lg border border-amber-300 space-y-1.5">
+                            <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                              <span>Comments / Notes:</span>
+                              <button onClick={() => setEditingNoteKey(null)} className="p-0.5">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={item.notes || ""}
+                              autoFocus
+                              onChange={(e) =>
+                                onUpdateItem(
+                                  currentSite,
+                                  unitName,
+                                  floorName,
+                                  realIndex,
+                                  "notes",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Type comment or note..."
+                              className="w-full p-1.5 bg-white border border-amber-200 rounded text-xs"
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setEditingNoteKey(rowKey)}
+                            className="text-xs text-slate-500 hover:text-indigo-600 flex items-center gap-1 py-1"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>+ Add Comment / Note</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Bottom Mobile Action Buttons */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <button
+                          onClick={() =>
+                            onOpenPhotos(
+                              currentSite,
+                              unitName,
+                              floorName,
+                              realIndex,
+                              item
+                            )
+                          }
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
+                            item.photos && item.photos.length > 0
+                              ? "bg-indigo-50 text-indigo-700 border-indigo-300"
+                              : "bg-slate-50 text-slate-700 border-slate-200"
+                          }`}
+                        >
+                          <Camera className="w-4 h-4 text-indigo-600" />
+                          <span>Photos ({item.photos?.length || 0})</span>
                         </button>
+
                         <button
-                          onClick={() => onAddQuickItem(unitName, floorName)}
-                          className="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/80 font-medium transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          onClick={() =>
+                            onRemoveItem(currentSite, unitName, floorName, realIndex)
+                          }
+                          className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
                         >
-                          <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                          Add Row
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-
-                    {/* Table */}
-                    <div className="overflow-x-auto border border-slate-200/80 rounded-xl shadow-2xs">
-                      <table className="w-full text-left border-collapse min-w-[850px] text-xs">
-                        <thead>
-                          <tr className="bg-slate-900 text-slate-200">
-                            <th className="p-3 w-12 text-center font-semibold">No.</th>
-                            <th className="p-3 w-44 font-semibold">Area / Location</th>
-                            <th className="p-3 font-semibold">Outstanding Work</th>
-                            <th className="p-3 w-36 font-semibold">Trade / Artisan</th>
-                            <th className="p-3 w-28 font-semibold">Priority</th>
-                            <th className="p-3 w-36 font-semibold">Status</th>
-                            <th className="p-3 w-28 text-center font-semibold">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200/70 bg-white">
-                          {filteredItems.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={7}
-                                className="p-4 text-center text-slate-400 italic bg-slate-50/50"
-                              >
-                                No matching work items found on this floor.
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredItems.map((item, idx) => {
-                              // Find actual index in raw array
-                              const realIndex = rawItems.indexOf(item);
-
-                              return (
-                                <tr
-                                  key={item.id || `${floorName}-${idx}`}
-                                  className="hover:bg-indigo-50/20 transition-colors"
-                                >
-                                  {/* Item Index */}
-                                  <td className="p-2.5 text-center text-slate-400 font-medium">
-                                    {realIndex + 1}
-                                  </td>
-
-                                  {/* Area / Location Input */}
-                                  <td className="p-1.5">
-                                    <input
-                                      type="text"
-                                      value={item.area}
-                                      onChange={(e) =>
-                                        onUpdateItem(
-                                          unitName,
-                                          floorName,
-                                          realIndex,
-                                          "area",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full p-1.5 bg-slate-50/50 border border-slate-200/80 rounded-md focus:border-indigo-500 focus:bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                      placeholder="Area..."
-                                    />
-                                  </td>
-
-                                  {/* Outstanding Work Input */}
-                                  <td className="p-1.5">
-                                    <input
-                                      type="text"
-                                      value={item.work}
-                                      onChange={(e) =>
-                                        onUpdateItem(
-                                          unitName,
-                                          floorName,
-                                          realIndex,
-                                          "work",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full p-1.5 bg-slate-50/50 border border-slate-200/80 rounded-md focus:border-indigo-500 focus:bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                      placeholder="Work description..."
-                                    />
-                                  </td>
-
-                                  {/* Trade / Artisan Input */}
-                                  <td className="p-1.5">
-                                    <input
-                                      type="text"
-                                      value={item.trade}
-                                      onChange={(e) =>
-                                        onUpdateItem(
-                                          unitName,
-                                          floorName,
-                                          realIndex,
-                                          "trade",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full p-1.5 bg-slate-50/50 border border-slate-200/80 rounded-md focus:border-indigo-500 focus:bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                      placeholder="Trade..."
-                                    />
-                                  </td>
-
-                                  {/* Priority Dropdown */}
-                                  <td className="p-1.5">
-                                    <select
-                                      value={item.priority || "Medium"}
-                                      onChange={(e) =>
-                                        onUpdateItem(
-                                          unitName,
-                                          floorName,
-                                          realIndex,
-                                          "priority",
-                                          e.target.value as WorkPriority
-                                        )
-                                      }
-                                      className={`w-full p-1.5 border rounded-md text-xs font-semibold focus:outline-none transition-all cursor-pointer ${
-                                        item.priority === "Critical"
-                                          ? "text-rose-700 bg-rose-50 border-rose-200"
-                                          : item.priority === "High"
-                                          ? "text-amber-700 bg-amber-50 border-amber-200"
-                                          : item.priority === "Low"
-                                          ? "text-slate-600 bg-slate-50 border-slate-200"
-                                          : "text-indigo-700 bg-indigo-50 border-indigo-200"
-                                      }`}
-                                    >
-                                      <option value="Low">Low</option>
-                                      <option value="Medium">Medium</option>
-                                      <option value="High">High</option>
-                                      <option value="Critical">Critical</option>
-                                    </select>
-                                  </td>
-
-                                  {/* Status Selector */}
-                                  <td className="p-1.5">
-                                    <select
-                                      value={item.status}
-                                      onChange={(e) =>
-                                        onUpdateItem(
-                                          unitName,
-                                          floorName,
-                                          realIndex,
-                                          "status",
-                                          e.target.value as WorkStatus
-                                        )
-                                      }
-                                      className={`w-full p-1.5 border rounded-md text-xs font-bold focus:outline-none cursor-pointer transition-all ${
-                                        item.status === "Completed"
-                                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                          : item.status === "In Progress"
-                                          ? "bg-amber-50 text-amber-800 border-amber-200"
-                                          : "bg-slate-50 text-slate-700 border-slate-200"
-                                      }`}
-                                    >
-                                      <option value="Pending">Pending</option>
-                                      <option value="In Progress">In Progress</option>
-                                      <option value="Completed">Completed</option>
-                                    </select>
-                                  </td>
-
-                                  {/* Actions */}
-                                  <td className="p-1.5 text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                      <button
-                                        onClick={() =>
-                                          onDuplicateItem(unitName, floorName, realIndex)
-                                        }
-                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                        title="Duplicate item"
-                                      >
-                                        <Copy className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          onRemoveItem(unitName, floorName, realIndex)
-                                        }
-                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                                        title="Remove item"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         );
       })}
-
-      {totalVisibleItems === 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 space-y-2">
-          <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
-          <h3 className="font-semibold text-slate-700 text-lg">No Work Items Found</h3>
-          <p className="text-sm text-slate-500">
-            Try adjusting your search criteria or filter options to view outstanding works.
-          </p>
-        </div>
-      )}
     </div>
   );
 };

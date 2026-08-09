@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Header } from "./components/Header";
 import { SummaryCards } from "./components/SummaryCards";
 import { Toolbar } from "./components/Toolbar";
 import { WorkTable } from "./components/WorkTable";
 import { AddWorkModal } from "./components/AddWorkModal";
 import { TradeAnalyticsModal } from "./components/TradeAnalyticsModal";
-import { BackendStatusModal } from "./components/BackendStatusModal";
 import { ManageUnitsModal } from "./components/ManageUnitsModal";
-import { syncToFirestore, subscribeToFirestore } from "./lib/firebase";
+import { ManageSitesModal } from "./components/ManageSitesModal";
+import { ReportsModal } from "./components/ReportsModal";
+import { PhotoModal } from "./components/PhotoModal";
+import { PdfExportModal } from "./components/PdfExportModal";
+import { syncToFirestore, subscribeToFirestore, subscribeSyncStatus, SyncStatus } from "./lib/firebase";
+import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
 import {
   SiteTrackerData,
+  SitesMap,
   TrackerSummary,
   FilterState,
   WorkItem,
@@ -27,147 +32,403 @@ const DEFAULT_SUMMARY: TrackerSummary = {
   unitStats: {},
 };
 
+const DEFAULT_SITE_TEMPLATE: SiteTrackerData = {
+  "Unit 1": {
+    "Ground Floor": [],
+    "First Floor": [],
+    "Second Floor": [],
+    "Third Floor": [],
+    "General / All Floors": [],
+  },
+  "Unit 2": {
+    "Ground Floor": [],
+    "First Floor": [],
+    "Second Floor": [],
+    "Third Floor": [],
+    "General / All Floors": [],
+  },
+};
+
 export default function App() {
-  const [data, setData] = useState<SiteTrackerData>({});
+  const [sitesData, setSitesData] = useState<SitesMap>({});
+  const [currentSite, setCurrentSite] = useState<string>("Esplanade 6");
   const [summary, setSummary] = useState<TrackerSummary>(DEFAULT_SUMMARY);
-  const [backendConnected, setBackendConnected] = useState<boolean>(true);
-  const [cloudSynced, setCloudSynced] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    isOnline: typeof navigator !== "undefined" ? navigator.onLine : true,
+    hasPendingSync: false,
+    isSyncing: false,
+  });
+
+  // Ref to always track current site in async calls and subscription handlers
+  const currentSiteRef = useRef(currentSite);
+  useEffect(() => {
+    currentSiteRef.current = currentSite;
+  }, [currentSite]);
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isManageUnitsModalOpen, setIsManageUnitsModalOpen] = useState(false);
+  const [isManageSitesModalOpen, setIsManageSitesModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
-  const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [activePhotoItem, setActivePhotoItem] = useState<{
+    siteName: string;
+    unit: string;
+    floor: string;
+    index: number;
+    item: WorkItem;
+  } | null>(null);
 
   // Filters
   const [filters, setFilters] = useState<FilterState>({
+    site: "all",
     unit: "all",
     floor: "all",
     status: "all",
     trade: "all",
     priority: "all",
     search: "",
+    dateFilter: "all",
   });
 
-  // Calculate local summary from data
-  const computeSummary = useCallback((currentData: SiteTrackerData): TrackerSummary => {
-    let total = 0;
-    let pending = 0;
-    let inProgress = 0;
-    let completed = 0;
-    const tradeCounts: { [trade: string]: number } = {};
-    const unitStats: { [unit: string]: { total: number; completed: number; pct: number } } = {};
+  // Calculate summary dynamically reflecting current active site, map, and filters
+  const computeSummary = useCallback(
+    (allSitesMap: SitesMap, currentSiteName: string, currentFilters: FilterState): TrackerSummary => {
+      let total = 0;
+      let pending = 0;
+      let inProgress = 0;
+      let completed = 0;
+      const tradeCounts: { [trade: string]: number } = {};
+      const unitStats: { [unit: string]: { total: number; completed: number; pct: number } } = {};
 
-    Object.entries(currentData).forEach(([unitName, unit]) => {
-      let uTotal = 0;
-      let uCompleted = 0;
-      Object.values(unit).forEach((items) => {
-        items.forEach((item) => {
-          total++;
-          uTotal++;
-          if (item.status === "Pending") pending++;
-          else if (item.status === "In Progress") inProgress++;
-          else if (item.status === "Completed") {
-            completed++;
-            uCompleted++;
+      const siteKeysToInspect =
+        currentFilters.site === "all"
+          ? Object.keys(allSitesMap)
+          : [
+              currentFilters.site && allSitesMap[currentFilters.site]
+                ? currentFilters.site
+                : currentSiteName,
+            ];
+
+      siteKeysToInspect.forEach((siteKey) => {
+        const siteData = allSitesMap[siteKey] || {};
+        Object.entries(siteData).forEach(([unitName, unit]) => {
+          if (currentFilters.unit !== "all" && currentFilters.unit !== unitName) return;
+
+          if (!unitStats[unitName]) {
+            unitStats[unitName] = { total: 0, completed: 0, pct: 0 };
           }
 
-          const trade = item.trade || "Unassigned";
-          tradeCounts[trade] = (tradeCounts[trade] || 0) + 1;
+          Object.entries(unit).forEach(([floorName, items]) => {
+            if (currentFilters.floor !== "all" && currentFilters.floor !== floorName) return;
+
+            items.forEach((item) => {
+              if (currentFilters.status !== "all" && item.status !== currentFilters.status) return;
+              if (currentFilters.trade !== "all" && item.trade !== currentFilters.trade) return;
+
+              if (currentFilters.search) {
+                const q = currentFilters.search.toLowerCase();
+                const matchArea = (item.area || "").toLowerCase().includes(q);
+                const matchWork = (item.work || "").toLowerCase().includes(q);
+                const matchTrade = (item.trade || "").toLowerCase().includes(q);
+                const matchNotes = (item.notes || "").toLowerCase().includes(q);
+                if (!matchArea && !matchWork && !matchTrade && !matchNotes) return;
+              }
+
+              total++;
+              unitStats[unitName].total++;
+
+              if (item.status === "Pending") pending++;
+              else if (item.status === "In Progress") inProgress++;
+              else if (item.status === "Completed") {
+                completed++;
+                unitStats[unitName].completed++;
+              }
+
+              const trade = item.trade || "Unassigned";
+              tradeCounts[trade] = (tradeCounts[trade] || 0) + 1;
+            });
+          });
         });
       });
 
-      const pct = uTotal > 0 ? Math.round((uCompleted / uTotal) * 100) : 0;
-      unitStats[unitName] = { total: uTotal, completed: uCompleted, pct };
-    });
+      Object.keys(unitStats).forEach((u) => {
+        const st = unitStats[u];
+        st.pct = st.total > 0 ? Math.round((st.completed / st.total) * 100) : 0;
+      });
 
-    const overallPct = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { total, pending, inProgress, completed, overallPct, tradeCounts, unitStats };
-  }, []);
+      const overallPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return { total, pending, inProgress, completed, overallPct, tradeCounts, unitStats };
+    },
+    []
+  );
 
-  // Sync data to both Python backend & Cloud Firestore
-  const persistData = useCallback(
-    async (newData: SiteTrackerData) => {
-      setData(newData);
-      setSummary(computeSummary(newData));
+  // Active site data getter
+  const activeData: SiteTrackerData = sitesData[currentSite] || {};
+
+  // Persist all sites data
+  const persistAllSites = useCallback(
+    async (newSitesMap: SitesMap, targetSite?: string) => {
+      const siteToUse = targetSite || currentSiteRef.current;
+      setSitesData(newSitesMap);
       setIsSyncing(true);
 
+      setSummary(computeSummary(newSitesMap, siteToUse, filters));
+
       try {
-        // 1. Post to Python Backend
-        const res = await fetch("/api/sync-firestore", {
+        await fetch("/api/sync-firestore", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: newData }),
+          body: JSON.stringify({ data: newSitesMap[siteToUse] || {} }),
         });
-        if (res.ok) setBackendConnected(true);
       } catch (e) {
-        console.warn("[App] Python backend sync warning:", e);
-        setBackendConnected(false);
+        console.warn("[App] Sync warning:", e);
       }
 
       try {
-        // 2. Post to Cloud Firestore
-        const ok = await syncToFirestore(newData);
-        setCloudSynced(ok);
+        await syncToFirestore(newSitesMap);
       } catch (e) {
         console.warn("[App] Firestore sync warning:", e);
-        setCloudSynced(false);
       } finally {
         setIsSyncing(false);
       }
     },
-    [computeSummary]
+    [computeSummary, filters]
   );
 
-  // Fetch initial dataset from Python backend
+  // Persist current active site data update
+  const persistActiveSiteData = useCallback(
+    (newSiteData: SiteTrackerData) => {
+      const activeSite = currentSiteRef.current;
+      const newSitesMap: SitesMap = {
+        ...sitesData,
+        [activeSite]: newSiteData,
+      };
+      persistAllSites(newSitesMap, activeSite);
+    },
+    [sitesData, persistAllSites]
+  );
+
+  // Fetch initial dataset
   const fetchData = useCallback(async () => {
     setIsSyncing(true);
     try {
       const res = await fetch("/api/works");
       if (res.ok) {
         const json = await res.json();
-        if (json.data) {
-          setData(json.data);
-          setSummary(computeSummary(json.data));
-          setBackendConnected(true);
-        }
-      } else {
-        setBackendConnected(false);
+        const esplanadeData = json.data || createEsplanade6Template();
+        const initialMap: SitesMap = {
+          "Esplanade 6": esplanadeData,
+          "EGC3": createEGC3Template(),
+        };
+        setSitesData((prev) => {
+          if (Object.keys(prev).length === 0) return initialMap;
+          // Ensure EGC3 exists if missing
+          if (!prev["EGC3"]) {
+            return { ...prev, "EGC3": createEGC3Template() };
+          }
+          return prev;
+        });
       }
     } catch (e) {
-      console.warn("[App] Failed to fetch from Python backend:", e);
-      setBackendConnected(false);
+      console.warn("[App] Failed to fetch initial data:", e);
+      setSitesData((prev) =>
+        Object.keys(prev).length > 0
+          ? prev
+          : {
+              "Esplanade 6": createEsplanade6Template(),
+              "EGC3": createEGC3Template(),
+            }
+      );
     } finally {
       setIsSyncing(false);
     }
-  }, [computeSummary]);
+  }, []);
 
-  // Initial load & real-time Firestore subscription
+  // Initial load & real-time Firestore subscription (runs ONCE on mount)
   useEffect(() => {
     fetchData();
 
-    // Subscribe to Firestore changes for multi-user collaboration
-    const unsubscribe = subscribeToFirestore((cloudData) => {
-      if (cloudData && Object.keys(cloudData).length > 0) {
-        setData(cloudData);
-        setSummary(computeSummary(cloudData));
-        setCloudSynced(true);
+    const unsubscribeData = subscribeToFirestore((cloudSites) => {
+      if (cloudSites && Object.keys(cloudSites).length > 0) {
+        setSitesData(cloudSites);
       }
     });
 
+    const unsubscribeStatus = subscribeSyncStatus((st) => {
+      setSyncStatus(st);
+    });
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribeData) unsubscribeData();
+      if (unsubscribeStatus) unsubscribeStatus();
     };
-  }, [fetchData, computeSummary]);
+  }, [fetchData]);
+
+  // Update summary when active site, sitesData, or filters change
+  useEffect(() => {
+    setSummary(computeSummary(sitesData, currentSite, filters));
+  }, [currentSite, sitesData, filters, computeSummary]);
+
+  // Manual cloud sync handler
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await syncToFirestore(sitesData);
+    } catch (e) {
+      console.warn("[App] Manual sync warning:", e);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  };
+
+  // Handle site selection
+  const handleSelectSite = (siteName: string) => {
+    if (siteName === "all" || sitesData[siteName]) {
+      setCurrentSite(siteName);
+      setFilters((prev) => ({ ...prev, site: siteName, unit: "all", floor: "all" }));
+    }
+  };
+
+  // Add new site
+  const handleAddSite = (siteName: string, initialData?: SiteTrackerData) => {
+    const trimmed = siteName.trim();
+    if (!trimmed) return;
+    const template = initialData || createEsplanade6Template();
+    const newMap: SitesMap = {
+      ...sitesData,
+      [trimmed]: JSON.parse(JSON.stringify(template)),
+    };
+    setCurrentSite(trimmed);
+    setFilters((prev) => ({ ...prev, site: trimmed, unit: "all", floor: "all" }));
+    persistAllSites(newMap, trimmed);
+  };
+
+  // Rename site
+  const handleRenameSite = (oldName: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || oldName === trimmed) return;
+    const newMap: SitesMap = { ...sitesData };
+    if (newMap[oldName]) {
+      newMap[trimmed] = newMap[oldName];
+      delete newMap[oldName];
+      let active = currentSiteRef.current;
+      if (currentSiteRef.current === oldName) {
+        active = trimmed;
+        setCurrentSite(trimmed);
+      }
+      persistAllSites(newMap, active);
+    }
+  };
+
+  // Delete site
+  const handleDeleteSite = (siteName: string) => {
+    const siteKeys = Object.keys(sitesData);
+    if (siteKeys.length <= 1) return;
+    const newMap: SitesMap = { ...sitesData };
+    delete newMap[siteName];
+
+    let nextSite = currentSiteRef.current;
+    if (currentSiteRef.current === siteName) {
+      nextSite = Object.keys(newMap)[0];
+      setCurrentSite(nextSite);
+    }
+    persistAllSites(newMap, nextSite);
+  };
+
+  // Move item between sites
+  const handleMoveItemSite = (
+    fromSite: string,
+    toSite: string,
+    unit: string,
+    floor: string,
+    index: number
+  ) => {
+    if (fromSite === toSite) return;
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (
+      newSitesMap[fromSite] &&
+      newSitesMap[fromSite][unit] &&
+      newSitesMap[fromSite][unit][floor] &&
+      newSitesMap[fromSite][unit][floor][index]
+    ) {
+      const [item] = newSitesMap[fromSite][unit][floor].splice(index, 1);
+      if (!newSitesMap[toSite]) newSitesMap[toSite] = {};
+      if (!newSitesMap[toSite][unit]) newSitesMap[toSite][unit] = {};
+      if (!newSitesMap[toSite][unit][floor]) newSitesMap[toSite][unit][floor] = [];
+
+      newSitesMap[toSite][unit][floor].push(item);
+      persistAllSites(newSitesMap, toSite);
+    }
+  };
+
+  // Move item between units
+  const handleMoveItemUnit = (
+    siteName: string,
+    fromUnit: string,
+    toUnit: string,
+    floor: string,
+    index: number
+  ) => {
+    if (fromUnit === toUnit) return;
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (
+      newSitesMap[siteName] &&
+      newSitesMap[siteName][fromUnit] &&
+      newSitesMap[siteName][fromUnit][floor] &&
+      newSitesMap[siteName][fromUnit][floor][index]
+    ) {
+      const [item] = newSitesMap[siteName][fromUnit][floor].splice(index, 1);
+      if (!newSitesMap[siteName][toUnit]) newSitesMap[siteName][toUnit] = {};
+      if (!newSitesMap[siteName][toUnit][floor]) newSitesMap[siteName][toUnit][floor] = [];
+      newSitesMap[siteName][toUnit][floor].push(item);
+      persistAllSites(newSitesMap, siteName);
+    }
+  };
+
+  // Move item between floors
+  const handleMoveItemFloor = (
+    siteName: string,
+    unit: string,
+    fromFloor: string,
+    toFloor: string,
+    index: number
+  ) => {
+    if (fromFloor === toFloor) return;
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (
+      newSitesMap[siteName] &&
+      newSitesMap[siteName][unit] &&
+      newSitesMap[siteName][unit][fromFloor] &&
+      newSitesMap[siteName][unit][fromFloor][index]
+    ) {
+      const [item] = newSitesMap[siteName][unit][fromFloor].splice(index, 1);
+      if (!newSitesMap[siteName][unit][toFloor]) newSitesMap[siteName][unit][toFloor] = [];
+      newSitesMap[siteName][unit][toFloor].push(item);
+      persistAllSites(newSitesMap, siteName);
+    }
+  };
 
   // Filter change handler
   const handleFilterChange = (field: keyof FilterState, value: string) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
+    setFilters((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === "site") {
+        if (value === "all") {
+          setCurrentSite("all");
+        } else if (sitesData[value]) {
+          setCurrentSite(value);
+        }
+      }
+      return updated;
+    });
   };
 
-  // Add work item
+  // Add work item to specific site
   const handleAddWork = (
+    siteName: string,
     unit: string,
     floor: string,
     area: string,
@@ -177,9 +438,10 @@ export default function App() {
     priority: WorkPriority,
     notes: string
   ) => {
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
-    if (!newData[unit]) newData[unit] = {};
-    if (!newData[unit][floor]) newData[unit][floor] = [];
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (!newSitesMap[siteName]) newSitesMap[siteName] = {};
+    if (!newSitesMap[siteName][unit]) newSitesMap[siteName][unit] = {};
+    if (!newSitesMap[siteName][unit][floor]) newSitesMap[siteName][unit][floor] = [];
 
     const newItem: WorkItem = {
       id: `item-${Date.now()}`,
@@ -189,133 +451,201 @@ export default function App() {
       status,
       priority,
       notes,
+      updatedAt: new Date().toISOString(),
     };
 
-    newData[unit][floor].push(newItem);
-    persistData(newData);
+    newSitesMap[siteName][unit][floor].push(newItem);
+    persistAllSites(newSitesMap, siteName);
   };
 
   // Quick add blank/template row
-  const handleAddQuickItem = (unit: string, floor: string) => {
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
-    if (!newData[unit]) newData[unit] = {};
-    if (!newData[unit][floor]) newData[unit][floor] = [];
+  const handleAddQuickItem = (siteName: string, unit: string, floor: string) => {
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (!newSitesMap[siteName]) newSitesMap[siteName] = {};
+    if (!newSitesMap[siteName][unit]) newSitesMap[siteName][unit] = {};
+    if (!newSitesMap[siteName][unit][floor]) newSitesMap[siteName][unit][floor] = [];
 
-    newData[unit][floor].push({
+    newSitesMap[siteName][unit][floor].push({
       id: `quick-${Date.now()}`,
       area: "New Area",
       work: "Outstanding work item description...",
       trade: "General",
       status: "Pending",
       priority: "Medium",
+      updatedAt: new Date().toISOString(),
     });
 
-    persistData(newData);
+    persistAllSites(newSitesMap, siteName);
   };
 
   // Update item field
   const handleUpdateItem = (
+    siteName: string,
     unit: string,
     floor: string,
     index: number,
     field: keyof WorkItem,
     value: string
   ) => {
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
-    if (newData[unit] && newData[unit][floor] && newData[unit][floor][index]) {
-      (newData[unit][floor][index] as any)[field] = value;
-      persistData(newData);
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (
+      newSitesMap[siteName] &&
+      newSitesMap[siteName][unit] &&
+      newSitesMap[siteName][unit][floor] &&
+      newSitesMap[siteName][unit][floor][index]
+    ) {
+      (newSitesMap[siteName][unit][floor][index] as any)[field] = value;
+      newSitesMap[siteName][unit][floor][index].updatedAt = new Date().toISOString();
+      persistAllSites(newSitesMap, siteName);
     }
   };
 
   // Remove item
-  const handleRemoveItem = (unit: string, floor: string, index: number) => {
+  const handleRemoveItem = (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number
+  ) => {
     if (confirm("Are you sure you want to remove this work item?")) {
-      const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
-      if (newData[unit] && newData[unit][floor]) {
-        newData[unit][floor].splice(index, 1);
-        persistData(newData);
+      const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+      if (
+        newSitesMap[siteName] &&
+        newSitesMap[siteName][unit] &&
+        newSitesMap[siteName][unit][floor]
+      ) {
+        newSitesMap[siteName][unit][floor].splice(index, 1);
+        persistAllSites(newSitesMap, siteName);
       }
     }
   };
 
   // Duplicate item
-  const handleDuplicateItem = (unit: string, floor: string, index: number) => {
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
-    if (newData[unit] && newData[unit][floor] && newData[unit][floor][index]) {
-      const existing = newData[unit][floor][index];
+  const handleDuplicateItem = (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number
+  ) => {
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (
+      newSitesMap[siteName] &&
+      newSitesMap[siteName][unit] &&
+      newSitesMap[siteName][unit][floor] &&
+      newSitesMap[siteName][unit][floor][index]
+    ) {
+      const existing = newSitesMap[siteName][unit][floor][index];
       const dup: WorkItem = {
         ...existing,
         id: `dup-${Date.now()}`,
         area: `${existing.area} (Copy)`,
+        updatedAt: new Date().toISOString(),
       };
-      newData[unit][floor].splice(index + 1, 0, dup);
-      persistData(newData);
+      newSitesMap[siteName][unit][floor].splice(index + 1, 0, dup);
+      persistAllSites(newSitesMap, siteName);
     }
   };
 
   // Batch complete floor
-  const handleBatchCompleteFloor = (unit: string, floor: string) => {
-    if (confirm(`Mark all items on ${unit} - ${floor} as Completed?`)) {
-      const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
-      if (newData[unit] && newData[unit][floor]) {
-        newData[unit][floor].forEach((item) => {
+  const handleBatchCompleteFloor = (siteName: string, unit: string, floor: string) => {
+    if (confirm(`Mark all items on ${siteName} - ${unit} - ${floor} as Completed?`)) {
+      const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+      if (
+        newSitesMap[siteName] &&
+        newSitesMap[siteName][unit] &&
+        newSitesMap[siteName][unit][floor]
+      ) {
+        newSitesMap[siteName][unit][floor].forEach((item) => {
           item.status = "Completed";
+          item.updatedAt = new Date().toISOString();
         });
-        persistData(newData);
+        persistAllSites(newSitesMap, siteName);
       }
     }
   };
 
-  // Add new building unit
+  // Open Photos modal for an item
+  const handleOpenPhotos = (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number,
+    item: WorkItem
+  ) => {
+    setActivePhotoItem({ siteName, unit, floor, index, item });
+  };
+
+  // Update Photos array for an item
+  const handleUpdatePhotos = (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number,
+    photos: string[]
+  ) => {
+    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
+    if (
+      newSitesMap[siteName] &&
+      newSitesMap[siteName][unit] &&
+      newSitesMap[siteName][unit][floor] &&
+      newSitesMap[siteName][unit][floor][index]
+    ) {
+      newSitesMap[siteName][unit][floor][index].photos = photos;
+      newSitesMap[siteName][unit][floor][index].updatedAt = new Date().toISOString();
+      persistAllSites(newSitesMap, siteName);
+
+      setActivePhotoItem((prev) =>
+        prev ? { ...prev, item: { ...prev.item, photos } } : null
+      );
+    }
+  };
+
+  // Add new building unit in active site
   const handleAddUnit = (unitName: string, floors: string[]) => {
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
+    const newData = JSON.parse(JSON.stringify(activeData)) as SiteTrackerData;
     if (!newData[unitName]) {
       newData[unitName] = {};
       floors.forEach((f) => {
         newData[unitName][f] = [];
       });
-      persistData(newData);
+      persistActiveSiteData(newData);
     }
   };
 
-  // Rename building unit
+  // Rename building unit in active site
   const handleRenameUnit = (oldName: string, newName: string) => {
     if (!newName.trim() || oldName === newName) return;
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
+    const newData = JSON.parse(JSON.stringify(activeData)) as SiteTrackerData;
     if (newData[oldName]) {
       newData[newName] = newData[oldName];
       delete newData[oldName];
-      // Update unit filter if active
       if (filters.unit === oldName) {
         setFilters((prev) => ({ ...prev, unit: newName }));
       }
-      persistData(newData);
+      persistActiveSiteData(newData);
     }
   };
 
-  // Delete building unit
+  // Delete building unit in active site
   const handleDeleteUnit = (unitName: string) => {
-    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
+    const newData = JSON.parse(JSON.stringify(activeData)) as SiteTrackerData;
     if (newData[unitName]) {
       delete newData[unitName];
       if (filters.unit === unitName) {
         setFilters((prev) => ({ ...prev, unit: "all" }));
       }
-      persistData(newData);
+      persistActiveSiteData(newData);
     }
   };
 
   // Reset to initial seed state
   const handleReset = async () => {
-    if (confirm("Reset the Esplanade 6 works tracker to the original site closeout list?")) {
+    if (confirm(`Reset "${currentSite}" works tracker to default state?`)) {
       try {
         const res = await fetch("/api/seed", { method: "POST" });
         if (res.ok) {
           const json = await res.json();
-          setData(json.data);
-          setSummary(computeSummary(json.data));
-          syncToFirestore(json.data);
+          persistActiveSiteData(json.data);
         }
       } catch (e) {
         console.error("Failed to reset dataset:", e);
@@ -323,9 +653,33 @@ export default function App() {
     }
   };
 
-  // Download CSV
+  // Client-side CSV export for active site
   const handleExportCsv = () => {
-    window.open("/api/export/csv", "_blank");
+    const csvLines = ["Site,Unit,Floor,Area,Outstanding Work,Trade,Status,Priority,Notes"];
+    Object.entries(activeData).forEach(([unit, floors]) => {
+      Object.entries(floors).forEach(([floor, items]) => {
+        items.forEach((item) => {
+          const area = (item.area || "").replace(/"/g, '""');
+          const work = (item.work || "").replace(/"/g, '""');
+          const trade = (item.trade || "").replace(/"/g, '""');
+          const status = item.status || "Pending";
+          const priority = item.priority || "Medium";
+          const notes = (item.notes || "").replace(/"/g, '""');
+          csvLines.push(
+            `"${currentSite}","${unit}","${floor}","${area}","${work}","${trade}","${status}","${priority}","${notes}"`
+          );
+        });
+      });
+    });
+
+    const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${currentSite.toLowerCase().replace(/\s+/g, "_")}_outstanding_works.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Print view
@@ -333,35 +687,83 @@ export default function App() {
     window.print();
   };
 
-  // Extract list of all units, floors, trades
-  const unitsList = Object.keys(data);
-  const floorsList = [
+  // Extract list of all units, floors, trades for active or all filtered sites
+  const allSitesList = Object.keys(sitesData).length > 0 ? Object.keys(sitesData) : [currentSite];
+
+  const sitesToInspect =
+    filters.site === "all"
+      ? Object.values(sitesData)
+      : [sitesData[filters.site] || sitesData[currentSite] || {}];
+
+  const unitsSet = new Set<string>();
+  sitesToInspect.forEach((sData) => {
+    if (sData) Object.keys(sData).forEach((u) => unitsSet.add(u));
+  });
+  const unitsList = Array.from(unitsSet).sort((a, b) => {
+    const numA = parseInt(a.replace(/\D/g, ""), 10);
+    const numB = parseInt(b.replace(/\D/g, ""), 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return a.localeCompare(b);
+  });
+
+  const floorsSet = new Set<string>();
+  sitesToInspect.forEach((sData) => {
+    if (sData) {
+      Object.values(sData).forEach((unitFloors) => {
+        Object.keys(unitFloors).forEach((fl) => {
+          if (fl) floorsSet.add(fl);
+        });
+      });
+    }
+  });
+
+  const STANDARD_FLOOR_ORDER = [
     "Ground Floor",
     "First Floor",
     "Second Floor",
     "Third Floor",
-    "General / All Floors",
+    "Fourth Floor",
+    "Fifth Floor",
+    "Sixth Floor",
+    "Seventh Floor",
+    "Eighth Floor",
+    "General",
   ];
 
+  const floorsList = Array.from(floorsSet).sort((a, b) => {
+    const idxA = STANDARD_FLOOR_ORDER.indexOf(a);
+    const idxB = STANDARD_FLOOR_ORDER.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
   const tradesSet = new Set<string>();
-  Object.values(data).forEach((unit) => {
-    Object.values(unit).forEach((items) => {
-      items.forEach((item) => {
-        if (item.trade) tradesSet.add(item.trade);
+  sitesToInspect.forEach((sData) => {
+    if (sData) {
+      Object.values(sData).forEach((unit) => {
+        Object.values(unit).forEach((items) => {
+          items.forEach((item) => {
+            if (item.trade) tradesSet.add(item.trade);
+          });
+        });
       });
-    });
+    }
   });
   const tradesList = Array.from(tradesSet).sort();
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Brand Header */}
+      {/* Brand & Site Header */}
       <Header
-        backendConnected={backendConnected}
-        cloudSynced={cloudSynced}
+        currentSite={currentSite}
+        allSites={allSitesList}
         isSyncing={isSyncing}
-        onOpenBackendInfo={() => setIsBackendModalOpen(true)}
-        onManualSync={fetchData}
+        syncStatus={syncStatus}
+        onSelectSite={handleSelectSite}
+        onOpenManageSites={() => setIsManageSitesModalOpen(true)}
+        onManualSync={handleManualSync}
       />
 
       {/* Main Container */}
@@ -373,12 +775,16 @@ export default function App() {
         <Toolbar
           filters={filters}
           onFilterChange={handleFilterChange}
+          sitesList={allSitesList}
           units={unitsList}
           floors={floorsList}
           trades={tradesList}
           onAddWork={() => setIsAddModalOpen(true)}
+          onOpenManageSites={() => setIsManageSitesModalOpen(true)}
           onOpenManageUnits={() => setIsManageUnitsModalOpen(true)}
           onOpenTradeAnalytics={() => setIsTradeModalOpen(true)}
+          onOpenReports={() => setIsReportsModalOpen(true)}
+          onOpenPdfExport={() => setIsPdfModalOpen(true)}
           onExportCsv={handleExportCsv}
           onPrint={handlePrint}
           onReset={handleReset}
@@ -386,31 +792,45 @@ export default function App() {
 
         {/* Site Works Table View */}
         <WorkTable
-          data={data}
+          sitesData={sitesData}
+          allSitesList={allSitesList}
+          activeSiteName={currentSite}
           filters={filters}
           onUpdateItem={handleUpdateItem}
+          onMoveItemSite={handleMoveItemSite}
+          onMoveItemUnit={handleMoveItemUnit}
+          onMoveItemFloor={handleMoveItemFloor}
           onRemoveItem={handleRemoveItem}
           onDuplicateItem={handleDuplicateItem}
           onAddQuickItem={handleAddQuickItem}
           onBatchCompleteFloor={handleBatchCompleteFloor}
+          onOpenPhotos={handleOpenPhotos}
         />
       </main>
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 text-center py-6 text-xs text-slate-500 mt-12 print:hidden">
-        <p className="font-medium text-slate-700">
-          ESPLANADE 6 · Site Coordination & Close-Out Outstanding Works Tracker
-        </p>
-        <p className="text-slate-400 mt-1">
-          Powered by Python 3.10 Backend Service & Google Cloud Firestore Database
+        <p className="font-semibold text-slate-700">
+          {currentSite.toUpperCase()} · Site Coordination & Outstanding Works Close-Out Tracker
         </p>
       </footer>
 
       {/* Modals */}
+      <ManageSitesModal
+        isOpen={isManageSitesModalOpen}
+        onClose={() => setIsManageSitesModalOpen(false)}
+        sites={sitesData}
+        currentSite={currentSite}
+        onSelectSite={handleSelectSite}
+        onAddSite={handleAddSite}
+        onRenameSite={handleRenameSite}
+        onDeleteSite={handleDeleteSite}
+      />
+
       <ManageUnitsModal
         isOpen={isManageUnitsModalOpen}
         onClose={() => setIsManageUnitsModalOpen(false)}
-        data={data}
+        data={activeData}
         onAddUnit={handleAddUnit}
         onRenameUnit={handleRenameUnit}
         onDeleteUnit={handleDeleteUnit}
@@ -420,8 +840,8 @@ export default function App() {
       <AddWorkModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        units={unitsList}
-        floors={floorsList}
+        sites={sitesData}
+        currentSite={currentSite}
         trades={tradesList}
         onAdd={handleAddWork}
       />
@@ -429,15 +849,32 @@ export default function App() {
       <TradeAnalyticsModal
         isOpen={isTradeModalOpen}
         onClose={() => setIsTradeModalOpen(false)}
-        data={data}
+        data={activeData}
         onSelectTradeFilter={(t) => handleFilterChange("trade", t)}
       />
 
-      <BackendStatusModal
-        isOpen={isBackendModalOpen}
-        onClose={() => setIsBackendModalOpen(false)}
-        data={data}
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        sites={sitesData}
+        currentSite={currentSite}
+      />
+
+      <PhotoModal
+        isOpen={!!activePhotoItem}
+        onClose={() => setActivePhotoItem(null)}
+        workItem={activePhotoItem}
+        onUpdatePhotos={handleUpdatePhotos}
+      />
+
+      <PdfExportModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        sitesData={sitesData}
+        activeSiteName={currentSite}
+        filters={filters}
       />
     </div>
   );
 }
+
