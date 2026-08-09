@@ -1,0 +1,6 @@
+{
+  "name": "Esplanade 6 Works Tracker",
+  "description": "Site coordination and close-out outstanding works tracker for Esplanade 6 with Python backend and Cloud database.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

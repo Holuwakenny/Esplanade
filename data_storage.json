@@ -1,0 +1,847 @@
+{
+  "Unit 1": {
+    "Ground Floor": [
+      {
+        "id": "u1-g-1",
+        "area": "Guest Toilet",
+        "work": "Wall tile maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-g-2",
+        "area": "Kitchen Door",
+        "work": "Mason height correction",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      }
+    ],
+    "First Floor": [
+      {
+        "id": "u1-1-1",
+        "area": "Toilet",
+        "work": "Wall tile maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-1-2",
+        "area": "Marble areas",
+        "work": "Marble maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-1-3",
+        "area": "Door opening",
+        "work": "Masonry work for door correction",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      }
+    ],
+    "Second Floor": [
+      {
+        "id": "u1-2-1",
+        "area": "Toilet",
+        "work": "Wall tiling",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-2-2",
+        "area": "Rear Terrace",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u1-2-3",
+        "area": "Terraces",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-2-4",
+        "area": "Front Terrace",
+        "work": "Screeding",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "Third Floor": [
+      {
+        "id": "u1-3-1",
+        "area": "General",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u1-3-2",
+        "area": "Toilet",
+        "work": "Toilet maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-3-3",
+        "area": "Walls",
+        "work": "Wall dressing",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u1-3-4",
+        "area": "General",
+        "work": "Screeding maintenance",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "General / All Floors": [
+      {
+        "id": "u1-all-1",
+        "area": "Doors",
+        "work": "Door fixing across floors",
+        "trade": "Door Installer",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u1-all-2",
+        "area": "Staircase ways",
+        "work": "Screeding around staircase ways",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ]
+  },
+  "Unit 2": {
+    "Ground Floor": [
+      {
+        "id": "u2-g-1",
+        "area": "Guest Toilet",
+        "work": "Wall dressing",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u2-g-2",
+        "area": "Kitchen Entrance",
+        "work": "Iron cutting",
+        "trade": "Metal Worker",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u2-g-3",
+        "area": "General",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "First Floor": [
+      {
+        "id": "u2-1-1",
+        "area": "Family Lounge",
+        "work": "Marble tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u2-1-2",
+        "area": "General",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "Second Floor": [
+      {
+        "id": "u2-2-1",
+        "area": "General",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "Third Floor": [
+      {
+        "id": "u2-3-1",
+        "area": "Staircase",
+        "work": "Screeding and dressing",
+        "trade": "Screeder / Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u2-3-2",
+        "area": "Walls",
+        "work": "Wall tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u2-3-3",
+        "area": "Door",
+        "work": "Door height correction",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u2-3-4",
+        "area": "Front Fa\u00e7ade Slab",
+        "work": "Screeding",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "General / All Floors": [
+      {
+        "id": "u2-all-1",
+        "area": "Doors",
+        "work": "Door fixing and fitting across floors",
+        "trade": "Door Installer",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u2-all-2",
+        "area": "Staircase",
+        "work": "Screeding activities around staircase",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u2-all-3",
+        "area": "Manhole Covers",
+        "work": "POP / manhole cover works",
+        "trade": "POP / General",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ]
+  },
+  "Unit 3": {
+    "Ground Floor": [
+      {
+        "id": "u3-g-1",
+        "area": "Guest Toilet",
+        "work": "Wall dressing",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u3-g-2",
+        "area": "Lift Area",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u3-g-3",
+        "area": "Kitchen",
+        "work": "Skirting",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "First Floor": [
+      {
+        "id": "u3-1-1",
+        "area": "Family Lounge",
+        "work": "Marble tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u3-1-2",
+        "area": "General",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u3-1-3",
+        "area": "Children's Room Terrace",
+        "work": "Floor tiling",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "Second Floor": [],
+    "Third Floor": [
+      {
+        "id": "u3-3-1",
+        "area": "Staircase",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u3-3-2",
+        "area": "Master's Room & Gym",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u3-3-3",
+        "area": "Fa\u00e7ade Slab",
+        "work": "Screeding",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "General / All Floors": [
+      {
+        "id": "u3-all-1",
+        "area": "Staircase",
+        "work": "Staircase tiling",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u3-all-2",
+        "area": "Staircase Area",
+        "work": "Masonry work across staircase area",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u3-all-3",
+        "area": "Lift Area",
+        "work": "Tiling maintenance around lift",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ]
+  },
+  "Unit 4": {
+    "Ground Floor": [
+      {
+        "id": "u4-g-1",
+        "area": "Guest Toilet",
+        "work": "Floor tiling",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-g-2",
+        "area": "Lift Area",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-g-3",
+        "area": "Entrance Door",
+        "work": "Screeding maintenance",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u4-g-4",
+        "area": "Kitchen Entrance",
+        "work": "Iron cutting",
+        "trade": "Metal Worker",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u4-g-5",
+        "area": "Kitchen Store",
+        "work": "Tiling",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-g-6",
+        "area": "Kitchen Door",
+        "work": "Door fixing and mason work for height correction",
+        "trade": "Door Installer / Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      }
+    ],
+    "First Floor": [
+      {
+        "id": "u4-1-1",
+        "area": "Staircase",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-1-2",
+        "area": "Doors",
+        "work": "Door height correction",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u4-1-3",
+        "area": "Toilet",
+        "work": "Wall tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-1-4",
+        "area": "General",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "Second Floor": [
+      {
+        "id": "u4-2-1",
+        "area": "Toilets",
+        "work": "Wall tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-2-2",
+        "area": "Master's Toilet / Walk-in Closet",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ],
+    "Third Floor": [
+      {
+        "id": "u4-3-1",
+        "area": "Staircase / Doors",
+        "work": "Masonry activities and door height correction",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      }
+    ],
+    "General / All Floors": [
+      {
+        "id": "u4-all-1",
+        "area": "Rear Terrace",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u4-all-2",
+        "area": "Master's Walk-in Closet",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ]
+  },
+  "Unit 5": {
+    "Ground Floor": [
+      {
+        "id": "u5-g-1",
+        "area": "Staircase & Lift Area",
+        "work": "Marble maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u5-g-2",
+        "area": "Guest Toilet",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u5-g-3",
+        "area": "Kitchen Entrance",
+        "work": "Iron cutting",
+        "trade": "Metal Worker",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u5-g-4",
+        "area": "Store & Kitchen",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "First Floor": [
+      {
+        "id": "u5-1-1",
+        "area": "Toilet",
+        "work": "Toilet maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u5-1-2",
+        "area": "Terrace",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "Second Floor": [
+      {
+        "id": "u5-2-1",
+        "area": "Doors",
+        "work": "Door fixing",
+        "trade": "Door Installer",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u5-2-2",
+        "area": "Toilet",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "Third Floor": [
+      {
+        "id": "u5-3-1",
+        "area": "Toilet",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u5-3-2",
+        "area": "Doors",
+        "work": "Door fixing and masonry work",
+        "trade": "Door Installer / Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u5-3-3",
+        "area": "Gym",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u5-3-4",
+        "area": "Terrace Fa\u00e7ade Slab",
+        "work": "Screeding",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u5-3-5",
+        "area": "Kitchenette",
+        "work": "Screeding maintenance",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u5-3-6",
+        "area": "Staircase",
+        "work": "Wall dressing",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "General / All Floors": [
+      {
+        "id": "u5-all-1",
+        "area": "Door Openings",
+        "work": "Door size/space correction",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u5-all-2",
+        "area": "Madam's Bedroom",
+        "work": "Screeding maintenance",
+        "trade": "Screeder",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u5-all-3",
+        "area": "Family Lounge",
+        "work": "Marble tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u5-all-4",
+        "area": "Staircase",
+        "work": "Skirting",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      }
+    ]
+  },
+  "Unit 6": {
+    "Ground Floor": [
+      {
+        "id": "u6-g-1",
+        "area": "Guest Toilet Door",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u6-g-2",
+        "area": "Lift Area",
+        "work": "Tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u6-g-3",
+        "area": "Kitchen Entrance",
+        "work": "Remove obstructing iron and fix door",
+        "trade": "Metal / Door Installer",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u6-g-4",
+        "area": "Kitchen Exit Door",
+        "work": "Floor tiling maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "First Floor": [
+      {
+        "id": "u6-1-1",
+        "area": "Staircase",
+        "work": "Masonry work and staircase-side screeding",
+        "trade": "Mason / Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "Second Floor": [
+      {
+        "id": "u6-2-1",
+        "area": "Staircase / Walk-in Closet / Master's Toilet",
+        "work": "POP maintenance",
+        "trade": "POP Artisan",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u6-2-2",
+        "area": "Master's & Madam's Toilets",
+        "work": "Tiling and window dressing maintenance",
+        "trade": "Tiler / Window Worker",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ],
+    "Third Floor": [
+      {
+        "id": "u6-3-1",
+        "area": "Burglar Proof",
+        "work": "Fixing",
+        "trade": "Metal Worker",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      }
+    ],
+    "General / All Floors": [
+      {
+        "id": "u6-all-1",
+        "area": "Door Surroundings",
+        "work": "Skirting maintenance",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Low",
+        "notes": ""
+      },
+      {
+        "id": "u6-all-2",
+        "area": "All Toilets",
+        "work": "Tiling maintenance around doors",
+        "trade": "Tiler",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u6-all-3",
+        "area": "Windows & Doors",
+        "work": "Glass fixing",
+        "trade": "Glazier",
+        "status": "Pending",
+        "priority": "High",
+        "notes": ""
+      },
+      {
+        "id": "u6-all-4",
+        "area": "Doors",
+        "work": "Door dressing",
+        "trade": "Mason",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      },
+      {
+        "id": "u6-all-5",
+        "area": "Lift Vaults",
+        "work": "Plastering and screeding",
+        "trade": "Plasterer / Screeder",
+        "status": "Pending",
+        "priority": "Medium",
+        "notes": ""
+      }
+    ]
+  }
+}

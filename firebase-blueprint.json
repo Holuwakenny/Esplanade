@@ -1,0 +1,21 @@
+{
+  "entities": {
+    "workItems": {
+      "title": "Work Items",
+      "description": "Outstanding work items for Esplanade 6 site closeout tracker",
+      "type": "object",
+      "properties": {
+        "unit": { "type": "string" },
+        "floor": { "type": "string" },
+        "area": { "type": "string" },
+        "work": { "type": "string" },
+        "trade": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "In Progress", "Completed"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["unit", "floor", "area", "work", "trade", "status"]
+    }
+  }
+}
