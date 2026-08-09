@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Printer, RotateCcw, Download, PieChart, Search, Filter } from "lucide-react";
+import { Plus, Printer, RotateCcw, Download, PieChart, Search, Filter, Building2 } from "lucide-react";
 import { FilterState } from "../types";
 
 interface ToolbarProps {
@@ -9,6 +9,7 @@ interface ToolbarProps {
   floors: string[];
   trades: string[];
   onAddWork: () => void;
+  onOpenManageUnits: () => void;
   onOpenTradeAnalytics: () => void;
   onExportCsv: () => void;
   onPrint: () => void;
@@ -22,6 +23,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   floors,
   trades,
   onAddWork,
+  onOpenManageUnits,
   onOpenTradeAnalytics,
   onExportCsv,
   onPrint,
@@ -51,6 +53,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>Add Work</span>
+          </button>
+
+          <button
+            onClick={onOpenManageUnits}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium border border-slate-200 transition-all cursor-pointer shadow-2xs"
+            title="List, manage, or create new building units"
+          >
+            <Building2 className="w-4 h-4 text-indigo-600" />
+            <span>Units List ({units.length})</span>
           </button>
 
           <button

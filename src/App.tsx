@@ -6,6 +6,7 @@ import { WorkTable } from "./components/WorkTable";
 import { AddWorkModal } from "./components/AddWorkModal";
 import { TradeAnalyticsModal } from "./components/TradeAnalyticsModal";
 import { BackendStatusModal } from "./components/BackendStatusModal";
+import { ManageUnitsModal } from "./components/ManageUnitsModal";
 import { syncToFirestore, subscribeToFirestore } from "./lib/firebase";
 import {
   SiteTrackerData,
@@ -35,6 +36,7 @@ export default function App() {
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isManageUnitsModalOpen, setIsManageUnitsModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
 
@@ -265,6 +267,45 @@ export default function App() {
     }
   };
 
+  // Add new building unit
+  const handleAddUnit = (unitName: string, floors: string[]) => {
+    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
+    if (!newData[unitName]) {
+      newData[unitName] = {};
+      floors.forEach((f) => {
+        newData[unitName][f] = [];
+      });
+      persistData(newData);
+    }
+  };
+
+  // Rename building unit
+  const handleRenameUnit = (oldName: string, newName: string) => {
+    if (!newName.trim() || oldName === newName) return;
+    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
+    if (newData[oldName]) {
+      newData[newName] = newData[oldName];
+      delete newData[oldName];
+      // Update unit filter if active
+      if (filters.unit === oldName) {
+        setFilters((prev) => ({ ...prev, unit: newName }));
+      }
+      persistData(newData);
+    }
+  };
+
+  // Delete building unit
+  const handleDeleteUnit = (unitName: string) => {
+    const newData = JSON.parse(JSON.stringify(data)) as SiteTrackerData;
+    if (newData[unitName]) {
+      delete newData[unitName];
+      if (filters.unit === unitName) {
+        setFilters((prev) => ({ ...prev, unit: "all" }));
+      }
+      persistData(newData);
+    }
+  };
+
   // Reset to initial seed state
   const handleReset = async () => {
     if (confirm("Reset the Esplanade 6 works tracker to the original site closeout list?")) {
@@ -336,6 +377,7 @@ export default function App() {
           floors={floorsList}
           trades={tradesList}
           onAddWork={() => setIsAddModalOpen(true)}
+          onOpenManageUnits={() => setIsManageUnitsModalOpen(true)}
           onOpenTradeAnalytics={() => setIsTradeModalOpen(true)}
           onExportCsv={handleExportCsv}
           onPrint={handlePrint}
@@ -365,6 +407,16 @@ export default function App() {
       </footer>
 
       {/* Modals */}
+      <ManageUnitsModal
+        isOpen={isManageUnitsModalOpen}
+        onClose={() => setIsManageUnitsModalOpen(false)}
+        data={data}
+        onAddUnit={handleAddUnit}
+        onRenameUnit={handleRenameUnit}
+        onDeleteUnit={handleDeleteUnit}
+        onSelectUnitFilter={(u) => handleFilterChange("unit", u)}
+      />
+
       <AddWorkModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}

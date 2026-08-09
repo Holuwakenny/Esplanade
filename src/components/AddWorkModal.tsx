@@ -29,6 +29,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   onAdd,
 }) => {
   const [unit, setUnit] = useState<string>(units[0] || "Unit 1");
+  const [customUnit, setCustomUnit] = useState("");
   const [floor, setFloor] = useState<string>(floors[0] || "Ground Floor");
   const [area, setArea] = useState("");
   const [work, setWork] = useState("");
@@ -42,13 +43,15 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalUnit = unit === "ADD_NEW_UNIT" ? customUnit.trim() : unit;
     const finalTrade = trade === "Other" ? customTrade || "General" : trade;
-    if (!area.trim() || !work.trim()) return;
+    if (!finalUnit || !area.trim() || !work.trim()) return;
 
-    onAdd(unit, floor, area.trim(), work.trim(), finalTrade, status, priority, notes.trim());
+    onAdd(finalUnit, floor, area.trim(), work.trim(), finalTrade, status, priority, notes.trim());
     setArea("");
     setWork("");
     setNotes("");
+    setCustomUnit("");
     onClose();
   };
 
@@ -82,7 +85,19 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
                     {u}
                   </option>
                 ))}
+                <option value="ADD_NEW_UNIT">+ Add New Unit...</option>
               </select>
+
+              {unit === "ADD_NEW_UNIT" && (
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter new unit name (e.g. Unit 7)"
+                  value={customUnit}
+                  onChange={(e) => setCustomUnit(e.target.value)}
+                  className="w-full mt-2 p-2 border border-indigo-300 rounded-lg bg-indigo-50/30 text-slate-800 focus:outline-none focus:bg-white"
+                />
+              )}
             </div>
 
             <div>
