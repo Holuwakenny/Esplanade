@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { ListChecks, Sparkles, AlertTriangle } from "lucide-react";
 import { Header } from "./components/Header";
 import { SummaryCards } from "./components/SummaryCards";
 import { Toolbar } from "./components/Toolbar";
 import { WorkTable } from "./components/WorkTable";
+import { SitePlansView } from "./components/SitePlansView";
 import { AddWorkModal } from "./components/AddWorkModal";
 import { TradeAnalyticsModal } from "./components/TradeAnalyticsModal";
 import { ManageUnitsModal } from "./components/ManageUnitsModal";
@@ -12,6 +14,7 @@ import { PhotoModal } from "./components/PhotoModal";
 import { PdfExportModal } from "./components/PdfExportModal";
 import { syncToFirestore, subscribeToFirestore, subscribeSyncStatus, SyncStatus } from "./lib/firebase";
 import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
+import { getSitePlans, countPendingPlans } from "./lib/plansUtils";
 import {
   SiteTrackerData,
   SitesMap,
@@ -68,6 +71,9 @@ export default function App() {
 
   // Track timestamp of last local edit to protect user input from stale remote snapshots
   const lastLocalUpdateRef = useRef<number>(0);
+
+  // Main active tab ("works" or "plans")
+  const [mainViewTab, setMainViewTab] = useState<"works" | "plans">("works");
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -780,6 +786,9 @@ export default function App() {
   });
   const tradesList = Array.from(tradesSet).sort();
 
+  const currentSitePlans = getSitePlans(sitesData, currentSite);
+  const pendingPlansCounts = countPendingPlans(currentSitePlans);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Brand & Site Header */}
@@ -788,13 +797,65 @@ export default function App() {
         allSites={allSitesList}
         isSyncing={isSyncing}
         syncStatus={syncStatus}
+        mainViewTab={mainViewTab}
+        pendingPlansCount={pendingPlansCounts.totalPending}
+        totalWorksCount={summary.total}
+        onSelectViewTab={setMainViewTab}
         onSelectSite={handleSelectSite}
         onOpenManageSites={() => setIsManageSitesModalOpen(true)}
         onManualSync={handleManualSync}
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-[1400px] w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className={`flex-1 max-w-[1400px] w-full mx-auto p-4 sm:p-6 space-y-6 ${isReportsModalOpen || isPdfModalOpen ? "print:hidden" : ""}`}>
+        {/* Prominent View Switcher Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden">
+          <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-xl w-full sm:w-auto">
+            <button
+              onClick={() => setMainViewTab("works")}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                mainViewTab === "works"
+                  ? "bg-indigo-600 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <ListChecks className="w-4 h-4 text-indigo-300" />
+              <span>1. Outstanding Works Tracker</span>
+              <span className="px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[11px] font-black">
+                {summary.total}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setMainViewTab("plans")}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                mainViewTab === "plans"
+                  ? "bg-amber-500 text-slate-950 shadow-md"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>2. Issues & Action Plans</span>
+              {pendingPlansCounts.totalPending > 0 ? (
+                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[11px]">
+                  {pendingPlansCounts.totalPending} pending
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold text-[11px]">
+                  0
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium hidden md:flex items-center gap-2">
+            <span>Site Selected:</span>
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg font-bold border border-slate-200">
+              {currentSite}
+            </span>
+          </div>
+        </div>
+
         {/* KPI Cards & Overall Progress */}
         <SummaryCards summary={summary} />
 
@@ -817,22 +878,32 @@ export default function App() {
           onReset={handleReset}
         />
 
-        {/* Site Works Table View */}
-        <WorkTable
-          sitesData={sitesData}
-          allSitesList={allSitesList}
-          activeSiteName={currentSite}
-          filters={filters}
-          onUpdateItem={handleUpdateItem}
-          onMoveItemSite={handleMoveItemSite}
-          onMoveItemUnit={handleMoveItemUnit}
-          onMoveItemFloor={handleMoveItemFloor}
-          onRemoveItem={handleRemoveItem}
-          onDuplicateItem={handleDuplicateItem}
-          onAddQuickItem={handleAddQuickItem}
-          onBatchCompleteFloor={handleBatchCompleteFloor}
-          onOpenPhotos={handleOpenPhotos}
-        />
+        {/* View Content */}
+        {mainViewTab === "works" ? (
+          <WorkTable
+            sitesData={sitesData}
+            allSitesList={allSitesList}
+            activeSiteName={currentSite}
+            filters={filters}
+            onUpdateItem={handleUpdateItem}
+            onMoveItemSite={handleMoveItemSite}
+            onMoveItemUnit={handleMoveItemUnit}
+            onMoveItemFloor={handleMoveItemFloor}
+            onRemoveItem={handleRemoveItem}
+            onDuplicateItem={handleDuplicateItem}
+            onAddQuickItem={handleAddQuickItem}
+            onBatchCompleteFloor={handleBatchCompleteFloor}
+            onOpenPhotos={handleOpenPhotos}
+          />
+        ) : (
+          <SitePlansView
+            sitesData={sitesData}
+            currentSite={currentSite}
+            allSitesList={allSitesList}
+            onSelectSite={handleSelectSite}
+            onPersist={persistAllSites}
+          />
+        )}
       </main>
 
       {/* Footer */}

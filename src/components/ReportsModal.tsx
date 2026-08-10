@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
-import { X, Calendar, FileText, Printer, Clock, Building, PieChart, Download, Image as ImageIcon } from "lucide-react";
+import { X, Calendar, FileText, Printer, Clock, Building, PieChart, Download, Image as ImageIcon, Sparkles } from "lucide-react";
 import { SitesMap, WorkItem } from "../types";
+import { getSitePlans } from "../lib/plansUtils";
+import { SitePlansReportSection } from "./SitePlansReportSection";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -24,6 +26,8 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   );
   const [preparedBy, setPreparedBy] = useState<string>("Eng. Kehinde / Site Coordinator");
   const [includePhotos, setIncludePhotos] = useState<boolean>(true);
+  const [includePlans, setIncludePlans] = useState<boolean>(true);
+  const [sortBy, setSortBy] = useState<"priority" | "floor" | "trade">("priority");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const reportPrintRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +82,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   relevantSites.forEach((siteName) => {
     const siteObj = sites[siteName] || {};
     Object.entries(siteObj).forEach(([unitName, unitData]) => {
+      if (unitName.startsWith("_")) return;
       Object.entries(unitData).forEach(([floorName, items]) => {
         (items as WorkItem[]).forEach((item) => {
           totalWorks++;
@@ -108,8 +113,50 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
 
   const completionPct = totalWorks > 0 ? Math.round((completedWorks / totalWorks) * 100) : 0;
 
-  const totalPhotosCount = allFilteredItems.reduce((acc, item) => {
+  const PRIORITY_RANK: Record<string, number> = {
+    Critical: 1,
+    High: 2,
+    Medium: 3,
+    Low: 4,
+  };
+
+  const sortedFilteredItems = [...allFilteredItems].sort((a, b) => {
+    if (sortBy === "priority") {
+      const rA = PRIORITY_RANK[a.priority || "Medium"] || 3;
+      const rB = PRIORITY_RANK[b.priority || "Medium"] || 3;
+      if (rA !== rB) return rA - rB;
+    } else if (sortBy === "trade") {
+      const tA = a.trade || "";
+      const tB = b.trade || "";
+      if (tA !== tB) return tA.localeCompare(tB);
+    }
+    const sC = a.siteName.localeCompare(b.siteName);
+    if (sC !== 0) return sC;
+    const uC = a.unitName.localeCompare(b.unitName);
+    if (uC !== 0) return uC;
+    const fC = a.floorName.localeCompare(b.floorName);
+    if (fC !== 0) return fC;
+    return (a.area || "").localeCompare(b.area || "");
+  });
+
+  const totalPhotosCount = sortedFilteredItems.reduce((acc, item) => {
     return acc + (item.photos ? item.photos.length : 0);
+  }, 0);
+
+  const sitePlansData = relevantSites.map((siteName) => ({
+    siteName,
+    plans: getSitePlans(sites, siteName),
+  }));
+
+  const totalActionPlansCount = sitePlansData.reduce((acc, item) => {
+    const p = item.plans;
+    return (
+      acc +
+      (p.issuesAndChallenges?.length || 0) +
+      (p.nextDayPlan?.length || 0) +
+      (p.weeklyPlan?.length || 0) +
+      (p.monthlyPlan?.length || 0)
+    );
   }, 0);
 
   const handlePrintReport = () => {
@@ -205,7 +252,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         </div>
 
         {/* Controls Bar - Hidden in Print */}
-        <div className="bg-slate-50 p-4 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-5 gap-3 shrink-0 text-xs print:hidden items-end">
+        <div className="bg-slate-50 p-4 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-6 gap-3 shrink-0 text-xs print:hidden items-end">
           {/* Site Selection */}
           <div>
             <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
@@ -222,6 +269,22 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                   {s}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Sort Order Selector */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
+              Sort Items By:
+            </label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "priority" | "floor" | "trade")}
+              className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            >
+              <option value="priority">⚡ Priority (High → Low)</option>
+              <option value="floor">🏢 Floor & Area</option>
+              <option value="trade">🛠️ Trade / Artisan</option>
             </select>
           </div>
 
@@ -295,8 +358,8 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
           </div>
 
           {/* Include Photos Checkbox */}
-          <div className="flex items-center h-10">
-            <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 bg-white p-2 border border-slate-200 rounded-lg w-full hover:bg-slate-100 transition-colors">
+          <div className="flex items-center h-10 gap-2">
+            <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 bg-white p-2 border border-slate-200 rounded-lg w-1/2 hover:bg-slate-100 transition-colors">
               <input
                 type="checkbox"
                 checked={includePhotos}
@@ -306,6 +369,19 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
               <span className="flex items-center gap-1 text-xs">
                 <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
                 Photos ({totalPhotosCount})
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 bg-white p-2 border border-slate-200 rounded-lg w-1/2 hover:bg-slate-100 transition-colors">
+              <input
+                type="checkbox"
+                checked={includePlans}
+                onChange={(e) => setIncludePlans(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span className="flex items-center gap-1 text-xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                Plans ({totalActionPlansCount})
               </span>
             </label>
           </div>
@@ -418,14 +494,14 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
-                  {allFilteredItems.length === 0 ? (
+                  {sortedFilteredItems.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="p-4 text-center text-slate-400 italic">
                         No work items recorded for this timeframe.
                       </td>
                     </tr>
                   ) : (
-                    allFilteredItems.map((item, i) => (
+                    sortedFilteredItems.map((item, i) => (
                       <tr key={i} className="hover:bg-slate-50">
                         <td className="p-3 font-bold text-slate-900">
                           {item.siteName} · {item.unitName}
@@ -465,6 +541,11 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
               </table>
             </div>
           </div>
+
+          {/* Site Action Plans & Issues Section */}
+          {includePlans && (
+            <SitePlansReportSection sitePlansData={sitePlansData} />
+          )}
 
           {/* Photo Records Gallery Section */}
           {includePhotos && totalPhotosCount > 0 && (
@@ -652,14 +733,14 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {allFilteredItems.length === 0 ? (
+                {sortedFilteredItems.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ padding: "12px", textAlign: "center", color: "#000000", fontStyle: "italic" }}>
                       No work items recorded for this timeframe.
                     </td>
                   </tr>
                 ) : (
-                  allFilteredItems.map((item, i) => (
+                  sortedFilteredItems.map((item, i) => (
                     <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f8fafc", color: "#000000" }}>
                       <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold" }}>{item.siteName} · {item.unitName}</td>
                       <td style={{ padding: "8px 10px", border: "1px solid #000000" }}>{item.floorName} ({item.area})</td>
@@ -676,6 +757,11 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Action Plans & Issues Section in PDF */}
+          {includePlans && (
+            <SitePlansReportSection sitePlansData={sitePlansData} isPdfStyle={true} />
+          )}
 
           {/* Photo Gallery & Image Captions Section in PDF */}
           {includePhotos && totalPhotosCount > 0 && (

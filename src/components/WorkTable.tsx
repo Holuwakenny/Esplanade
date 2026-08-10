@@ -194,6 +194,7 @@ export const WorkTable: React.FC<WorkTableProps> = ({
         const flatRows: FlatRow[] = [];
 
         Object.entries(siteData).forEach(([unitName, unitFloors]) => {
+          if (unitName.startsWith("_")) return;
           if (filters.unit !== "all" && filters.unit !== unitName) return;
 
           Object.entries(unitFloors).forEach(([floorName, items]) => {
@@ -271,7 +272,7 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
         const availableUnits = Array.from(
           new Set([
-            ...Object.keys(siteData),
+            ...Object.keys(siteData).filter((u) => !u.startsWith("_")),
             "Unit 1",
             "Unit 2",
             "Unit 3",
@@ -284,7 +285,7 @@ export const WorkTable: React.FC<WorkTableProps> = ({
         const defaultUnit =
           filters.unit !== "all"
             ? filters.unit
-            : Object.keys(siteData)[0] || "Unit 1";
+            : Object.keys(siteData).filter((u) => !u.startsWith("_"))[0] || "Unit 1";
         const defaultFloor =
           filters.floor !== "all" ? filters.floor : "Ground Floor";
 

@@ -45,6 +45,25 @@ export interface TrackerSummary {
 
 export type DateFilterType = "all" | "today" | "this_week" | "this_month" | "custom";
 
+export interface PlanItem {
+  id: string;
+  title: string;
+  status: "Pending" | "In Progress" | "Completed" | "Resolved";
+  priority?: WorkPriority;
+  assignedTo?: string;
+  targetDate?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SitePlans {
+  issuesAndChallenges: PlanItem[];
+  nextDayPlan: PlanItem[];
+  weeklyPlan: PlanItem[];
+  monthlyPlan: PlanItem[];
+}
+
 export interface FilterState {
   site: string;
   unit: string;

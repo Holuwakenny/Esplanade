@@ -36,7 +36,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   const [customSite, setCustomSite] = useState("");
 
   const siteData = sites[selectedSite] || {};
-  const availableUnits = Object.keys(siteData);
+  const availableUnits = Object.keys(siteData).filter((u) => !u.startsWith("_"));
 
   const [unit, setUnit] = useState<string>(availableUnits[0] || "Unit 1");
   const [customUnit, setCustomUnit] = useState("");
@@ -63,7 +63,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
     if (isOpen && !prevOpenRef.current) {
       const initialSite = currentSite && sites[currentSite] ? currentSite : siteList[0] || "Esplanade 6";
       setSelectedSite(initialSite);
-      const units = Object.keys(sites[initialSite] || {});
+      const units = Object.keys(sites[initialSite] || {}).filter((u) => !u.startsWith("_"));
       const initialUnit = units[0] || "Unit 1";
       setUnit(initialUnit);
 
@@ -80,7 +80,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   const handleSiteChange = (newSite: string) => {
     setSelectedSite(newSite);
     if (newSite !== "ADD_NEW_SITE") {
-      const newSiteUnits = Object.keys(sites[newSite] || {});
+      const newSiteUnits = Object.keys(sites[newSite] || {}).filter((u) => !u.startsWith("_"));
       const firstUnit = newSiteUnits[0] || "Unit 1";
       setUnit(firstUnit);
 

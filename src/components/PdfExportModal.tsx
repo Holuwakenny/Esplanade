@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
-import { X, FileDown, Image, CheckSquare, Building, FileText, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { X, FileDown, Image, CheckSquare, Building, FileText, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
 import { SitesMap, WorkItem, FilterState } from "../types";
+import { getSitePlans } from "../lib/plansUtils";
+import { SitePlansReportSection } from "./SitePlansReportSection";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -33,6 +35,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const [preparedBy, setPreparedBy] = useState<string>("Site Manager / Project Supervisor");
   const [includePhotos, setIncludePhotos] = useState<boolean>(true);
   const [includeNotes, setIncludeNotes] = useState<boolean>(true);
+  const [includePlans, setIncludePlans] = useState<boolean>(true);
+  const [sortBy, setSortBy] = useState<"priority" | "floor" | "trade">("priority");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const printContainerRef = useRef<HTMLDivElement>(null);
 
@@ -44,6 +48,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       ? Object.keys(sitesData)
       : [activeSiteName && sitesData[activeSiteName] ? activeSiteName : Object.keys(sitesData)[0] || "Default"];
 
+  const sitePlansData = targetSiteKeys.map((sKey) => ({
+    siteName: sKey,
+    plans: getSitePlans(sitesData, sKey),
+  }));
+
   // Gather items to include
   const exportItems: ExportItem[] = [];
   let totalPhotosCount = 0;
@@ -51,6 +60,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   targetSiteKeys.forEach((sKey) => {
     const sData = sitesData[sKey] || {};
     Object.entries(sData).forEach(([unitName, unitFloors]) => {
+      if (unitName.startsWith("_")) return;
       if (filters.unit !== "all" && filters.unit !== unitName) return;
       Object.entries(unitFloors).forEach(([floorName, items]) => {
         if (filters.floor !== "all" && filters.floor !== floorName) return;
@@ -72,6 +82,32 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         });
       });
     });
+  });
+
+  const PRIORITY_RANK: Record<string, number> = {
+    Critical: 1,
+    High: 2,
+    Medium: 3,
+    Low: 4,
+  };
+
+  const sortedExportItems = [...exportItems].sort((a, b) => {
+    if (sortBy === "priority") {
+      const rA = PRIORITY_RANK[a.item.priority || "Medium"] || 3;
+      const rB = PRIORITY_RANK[b.item.priority || "Medium"] || 3;
+      if (rA !== rB) return rA - rB;
+    } else if (sortBy === "trade") {
+      const tA = a.item.trade || "";
+      const tB = b.item.trade || "";
+      if (tA !== tB) return tA.localeCompare(tB);
+    }
+    const sC = a.siteName.localeCompare(b.siteName);
+    if (sC !== 0) return sC;
+    const uC = a.unitName.localeCompare(b.unitName);
+    if (uC !== 0) return uC;
+    const fC = a.floorName.localeCompare(b.floorName);
+    if (fC !== 0) return fC;
+    return (a.item.area || "").localeCompare(b.item.area || "");
   });
 
   const handleDownloadPdf = async () => {
@@ -217,6 +253,19 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                   <option value="all">All Sites & Projects</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Item Sorting Order in PDF</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as "priority" | "floor" | "trade")}
+                  className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-800 text-xs font-semibold focus:outline-none"
+                >
+                  <option value="priority">⚡ Priority (Critical & High First)</option>
+                  <option value="floor">🏢 Floor & Area Location</option>
+                  <option value="trade">🛠️ Trade / Artisan Group</option>
+                </select>
+              </div>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-slate-100">
@@ -243,6 +292,18 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 />
                 <span className="text-xs font-medium text-slate-700">
                   Include Work Item Comments & Technical Notes
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includePlans}
+                  onChange={(e) => setIncludePlans(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="text-xs font-medium text-slate-700">
+                  Include Site Action Plans, Issues & Challenges
                 </span>
               </label>
             </div>
@@ -308,7 +369,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {exportItems.map((row, idx) => (
+                {sortedExportItems.map((row, idx) => (
                   <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", color: "#000000" }}>
                     <td style={{ padding: "8px 10px", border: "1px solid #000000", textAlign: "center", fontWeight: "bold", color: "#000000" }}>{idx + 1}</td>
                     <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.area}</td>
@@ -329,6 +390,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Action Plans & Issues Section */}
+          {includePlans && (
+            <SitePlansReportSection sitePlansData={sitePlansData} isPdfStyle={true} />
+          )}
 
           {/* Photo Gallery & Image Captions Section */}
           {includePhotos && totalPhotosCount > 0 && (

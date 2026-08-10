@@ -33,7 +33,7 @@ export const ManageUnitsModal: React.FC<ManageUnitsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const unitNames = Object.keys(data);
+  const unitNames = Object.keys(data).filter((u) => !u.startsWith("_"));
 
   // Handle Add Unit submit
   const handleAddSubmit = (e: React.FormEvent) => {

@@ -1,40 +1,86 @@
 @import "tailwindcss";
 
 @media print {
-  /* Hide everything on the page by default in print mode */
-  body * {
-    visibility: hidden !important;
+  /* Hide non-printable interactive elements */
+  .print\:hidden,
+  nav,
+  header,
+  footer,
+  button,
+  select,
+  input {
+    display: none !important;
   }
 
-  /* Show only the printable report element and its children */
-  #printable-report-doc,
-  #printable-report-doc * {
-    visibility: visible !important;
-  }
-
-  /* Position printable report at the top of page */
-  #printable-report-doc {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 16px !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    overflow: visible !important;
-  }
-
-  /* Force print background colors & borders */
+  /* Force background colors and borders in print */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
+  /* Reset body and html layout for print dialog */
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Override fixed modal containers so long report documents print all pages without clipping */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .max-h-\[92vh\],
+  .max-h-\[90vh\],
+  .max-h-\[95vh\],
+  .overflow-y-auto {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Printable report document container styles */
+  #printable-report-doc,
+  .printable-report-area {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  #printable-report-doc *,
+  .printable-report-area * {
+    visibility: visible !important;
+  }
+
+  /* Prevent row and card page breaks mid-element */
+  tr, .break-inside-avoid, table, blockquote, .print-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   @page {
-    margin: 12mm;
+    margin: 10mm;
     size: portrait;
   }
 }
+
