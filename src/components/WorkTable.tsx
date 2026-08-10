@@ -721,6 +721,20 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
             {/* MOBILE CARD VIEW (sm and below) */}
             <div className="block md:hidden p-3 space-y-3 bg-slate-50/60">
+              <div className="flex items-center justify-between gap-2 pb-1">
+                <span className="text-xs font-bold text-slate-700">
+                  Showing {flatRows.length} Work Items
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onAddQuickItem(siteName, defaultUnit, defaultFloor)}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 active:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Row</span>
+                </button>
+              </div>
+
               {flatRows.length === 0 ? (
                 <div className="p-6 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
                   <p className="font-semibold text-slate-700">No work items found</p>
@@ -787,9 +801,29 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                       </div>
 
                       {/* Card Inputs: Area & Work */}
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         <div>
-                          <label className="text-[10px] uppercase font-bold text-slate-400">Area / Location</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400">Area / Location</label>
+                            {item.area ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateItem(
+                                    currentSite,
+                                    unitName,
+                                    floorName,
+                                    realIndex,
+                                    "area",
+                                    ""
+                                  )
+                                }
+                                className="text-[10px] font-semibold text-slate-400 hover:text-rose-600 transition-colors"
+                              >
+                                Clear
+                              </button>
+                            ) : null}
+                          </div>
                           <input
                             type="text"
                             value={item.area}
@@ -803,13 +837,33 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                                 e.target.value
                               )
                             }
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-bold focus:bg-white"
-                            placeholder="e.g. Guest Toilet"
+                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:font-normal placeholder:text-slate-400"
+                            placeholder="Type area (e.g. Master Bedroom, Kitchen...)"
                           />
                         </div>
 
                         <div>
-                          <label className="text-[10px] uppercase font-bold text-slate-400">Outstanding Work</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400">Outstanding Work</label>
+                            {item.work ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateItem(
+                                    currentSite,
+                                    unitName,
+                                    floorName,
+                                    realIndex,
+                                    "work",
+                                    ""
+                                  )
+                                }
+                                className="text-[10px] font-semibold text-slate-400 hover:text-rose-600 transition-colors"
+                              >
+                                Clear
+                              </button>
+                            ) : null}
+                          </div>
                           <textarea
                             rows={2}
                             value={item.work}
@@ -823,8 +877,8 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                                 e.target.value
                               )
                             }
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-medium focus:bg-white"
-                            placeholder="Work description..."
+                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+                            placeholder="Type work description..."
                           />
                         </div>
                       </div>

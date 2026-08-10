@@ -66,6 +66,9 @@ export default function App() {
     currentSiteRef.current = currentSite;
   }, [currentSite]);
 
+  // Track timestamp of last local edit to protect user input from stale remote snapshots
+  const lastLocalUpdateRef = useRef<number>(0);
+
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isManageUnitsModalOpen, setIsManageUnitsModalOpen] = useState(false);
@@ -168,31 +171,46 @@ export default function App() {
   // Active site data getter
   const activeData: SiteTrackerData = sitesData[currentSite] || {};
 
+  const pendingSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Persist all sites data
   const persistAllSites = useCallback(
-    async (newSitesMap: SitesMap, targetSite?: string) => {
+    (newSitesMap: SitesMap, targetSite?: string, debounceMs: number = 0) => {
+      lastLocalUpdateRef.current = Date.now();
       const siteToUse = targetSite || currentSiteRef.current;
       setSitesData(newSitesMap);
-      setIsSyncing(true);
-
       setSummary(computeSummary(newSitesMap, siteToUse, filters));
 
-      try {
-        await fetch("/api/sync-firestore", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: newSitesMap[siteToUse] || {} }),
-        });
-      } catch (e) {
-        console.warn("[App] Sync warning:", e);
+      if (pendingSyncTimerRef.current) {
+        clearTimeout(pendingSyncTimerRef.current);
+        pendingSyncTimerRef.current = null;
       }
 
-      try {
-        await syncToFirestore(newSitesMap);
-      } catch (e) {
-        console.warn("[App] Firestore sync warning:", e);
-      } finally {
-        setIsSyncing(false);
+      const executeSync = async () => {
+        setIsSyncing(true);
+        try {
+          await fetch("/api/sync-firestore", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: newSitesMap[siteToUse] || {} }),
+          });
+        } catch (e) {
+          console.warn("[App] Sync warning:", e);
+        }
+
+        try {
+          await syncToFirestore(newSitesMap);
+        } catch (e) {
+          console.warn("[App] Firestore sync warning:", e);
+        } finally {
+          setIsSyncing(false);
+        }
+      };
+
+      if (debounceMs > 0) {
+        pendingSyncTimerRef.current = setTimeout(executeSync, debounceMs);
+      } else {
+        executeSync();
       }
     },
     [computeSummary, filters]
@@ -252,6 +270,10 @@ export default function App() {
     fetchData();
 
     const unsubscribeData = subscribeToFirestore((cloudSites) => {
+      // Protect local user typing/edits from being overwritten by real-time cloud snapshots
+      if (Date.now() - lastLocalUpdateRef.current < 3500) {
+        return;
+      }
       if (cloudSites && Object.keys(cloudSites).length > 0) {
         setSitesData(cloudSites);
       }
@@ -460,16 +482,21 @@ export default function App() {
 
   // Quick add blank/template row
   const handleAddQuickItem = (siteName: string, unit: string, floor: string) => {
+    const targetUnit = filters.unit !== "all" ? filters.unit : unit;
+    const targetFloor = filters.floor !== "all" ? filters.floor : floor;
+    const targetTrade = filters.trade !== "all" ? filters.trade : "General";
+
     const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
     if (!newSitesMap[siteName]) newSitesMap[siteName] = {};
-    if (!newSitesMap[siteName][unit]) newSitesMap[siteName][unit] = {};
-    if (!newSitesMap[siteName][unit][floor]) newSitesMap[siteName][unit][floor] = [];
+    if (!newSitesMap[siteName][targetUnit]) newSitesMap[siteName][targetUnit] = {};
+    if (!newSitesMap[siteName][targetUnit][targetFloor]) newSitesMap[siteName][targetUnit][targetFloor] = [];
 
-    newSitesMap[siteName][unit][floor].push({
+    // Place at the top (unshift) so newly added row is immediately visible without scrolling
+    newSitesMap[siteName][targetUnit][targetFloor].unshift({
       id: `quick-${Date.now()}`,
-      area: "New Area",
-      work: "Outstanding work item description...",
-      trade: "General",
+      area: "",
+      work: "",
+      trade: targetTrade,
       status: "Pending",
       priority: "Medium",
       updatedAt: new Date().toISOString(),
@@ -496,7 +523,7 @@ export default function App() {
     ) {
       (newSitesMap[siteName][unit][floor][index] as any)[field] = value;
       newSitesMap[siteName][unit][floor][index].updatedAt = new Date().toISOString();
-      persistAllSites(newSitesMap, siteName);
+      persistAllSites(newSitesMap, siteName, 500);
     }
   };
 

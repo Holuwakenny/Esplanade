@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onSelectSite(e.target.value);
                     }
                   }}
-                  className="bg-slate-800 hover:bg-slate-700/80 text-white font-bold text-lg sm:text-2xl pr-8 pl-3 py-1 rounded-lg border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer transition-colors"
+                  className="bg-slate-800 hover:bg-slate-700/80 text-white font-bold text-base sm:text-2xl pr-8 pl-3 py-1 rounded-lg border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer transition-colors max-w-[220px] sm:max-w-none truncate"
                 >
                   <option value="all" className="bg-slate-900 text-indigo-300 font-bold text-base">
                     All Sites (All Active Projects)

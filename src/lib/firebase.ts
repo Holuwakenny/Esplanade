@@ -128,6 +128,10 @@ export function subscribeToFirestore(onSitesUpdate: (sites: SitesMap) => void) {
   try {
     const docRef = doc(db, "trackers", DOCUMENT_ID);
     return onSnapshot(docRef, (docSnap) => {
+      // Ignore local pending writes echo because local state is already updated locally
+      if (docSnap.metadata.hasPendingWrites) {
+        return;
+      }
       if (docSnap.exists()) {
         const payload = docSnap.data();
         if (payload && payload.sites) {

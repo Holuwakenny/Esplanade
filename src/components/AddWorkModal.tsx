@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Plus, Building, Layers } from "lucide-react";
 import { WorkStatus, WorkPriority, SitesMap } from "../types";
 
@@ -57,8 +57,10 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   const [priority, setPriority] = useState<WorkPriority>("Medium");
   const [notes, setNotes] = useState("");
 
+  const prevOpenRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevOpenRef.current) {
       const initialSite = currentSite && sites[currentSite] ? currentSite : siteList[0] || "Esplanade 6";
       setSelectedSite(initialSite);
       const units = Object.keys(sites[initialSite] || {});
@@ -70,6 +72,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
         : ["Ground Floor", "First Floor", "Second Floor", "General"];
       setFloor(floors[0] || "Ground Floor");
     }
+    prevOpenRef.current = isOpen;
   }, [isOpen, currentSite]);
 
   if (!isOpen) return null;
