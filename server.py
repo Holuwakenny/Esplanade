@@ -179,16 +179,36 @@ INITIAL_SEED = {
     }
 }
 
+def normalize_to_sites_map(data):
+    if not isinstance(data, dict) or not data:
+        return {"Esplanade 6": INITIAL_SEED}
+    
+    first_key = next(iter(data.keys()), None)
+    if not first_key:
+        return {"Esplanade 6": INITIAL_SEED}
+    
+    val = data[first_key]
+    if isinstance(val, dict):
+        first_sub_key = next(iter(val.keys()), None)
+        if first_sub_key and isinstance(val[first_sub_key], dict):
+            # Already a SitesMap (e.g. { "Esplanade 6": { "Unit 1": { ... } } })
+            return data
+    
+    # Single site legacy format (e.g. { "Unit 1": { "Ground Floor": [...] } })
+    return {"Esplanade 6": data}
+
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                raw_data = json.load(f)
+                return normalize_to_sites_map(raw_data)
         except Exception as e:
             print(f"[Python Backend] Error loading local file: {e}")
     # Save seed as initial state
-    save_data(INITIAL_SEED)
-    return INITIAL_SEED
+    initial_map = {"Esplanade 6": INITIAL_SEED}
+    save_data(initial_map)
+    return initial_map
 
 def save_data(data):
     try:
@@ -207,6 +227,7 @@ if os.path.exists(CONFIG_FILE):
         print(f"[Python Backend] Error reading Firebase config: {e}")
 
 def calculate_summary(data):
+    sites_map = normalize_to_sites_map(data)
     total = 0
     pending = 0
     in_progress = 0
@@ -214,27 +235,40 @@ def calculate_summary(data):
     trade_counts = {}
     unit_stats = {}
 
-    for unit, floors in data.items():
-        u_total = 0
-        u_completed = 0
-        for floor, items in floors.items():
-            for item in items:
-                total += 1
-                u_total += 1
-                status = item.get("status", "Pending")
-                if status == "Pending":
-                    pending += 1
-                elif status == "In Progress":
-                    in_progress += 1
-                elif status == "Completed":
-                    completed += 1
-                    u_completed += 1
-                
-                trade = item.get("trade", "Unassigned")
-                trade_counts[trade] = trade_counts.get(trade, 0) + 1
+    for site_name, units in sites_map.items():
+        if not isinstance(units, dict):
+            continue
+        for unit, floors in units.items():
+            if unit.startswith("_"):
+                continue
+            if not isinstance(floors, dict):
+                continue
+            if unit not in unit_stats:
+                unit_stats[unit] = {"total": 0, "completed": 0, "pct": 0}
+            u_st = unit_stats[unit]
 
-        pct = round((u_completed / u_total * 100)) if u_total > 0 else 0
-        unit_stats[unit] = {"total": u_total, "completed": u_completed, "pct": pct}
+            for floor, items in floors.items():
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    total += 1
+                    u_st["total"] += 1
+                    status = item.get("status", "Pending")
+                    if status == "Pending":
+                        pending += 1
+                    elif status == "In Progress":
+                        in_progress += 1
+                    elif status == "Completed":
+                        completed += 1
+                        u_st["completed"] += 1
+
+                    trade = item.get("trade", "Unassigned")
+                    trade_counts[trade] = trade_counts.get(trade, 0) + 1
+
+    for unit, st in unit_stats.items():
+        st["pct"] = round((st["completed"] / st["total"] * 100)) if st["total"] > 0 else 0
 
     overall_pct = round((completed / total * 100)) if total > 0 else 0
     return {
@@ -379,8 +413,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             # Sync payload from frontend or client
             client_data = body.get("data")
             if client_data and isinstance(client_data, dict):
-                save_data(client_data)
-                self._send_response(200, {"message": "Data synchronized with cloud backend", "summary": calculate_summary(client_data)})
+                norm = normalize_to_sites_map(client_data)
+                save_data(norm)
+                self._send_response(200, {"message": "Data synchronized with cloud backend", "summary": calculate_summary(norm)})
             else:
                 self._send_response(400, {"error": "Invalid data format"})
 

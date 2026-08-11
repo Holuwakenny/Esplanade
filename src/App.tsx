@@ -12,7 +12,7 @@ import { ManageSitesModal } from "./components/ManageSitesModal";
 import { ReportsModal } from "./components/ReportsModal";
 import { PhotoModal } from "./components/PhotoModal";
 import { PdfExportModal } from "./components/PdfExportModal";
-import { syncToFirestore, subscribeToFirestore, subscribeSyncStatus, SyncStatus } from "./lib/firebase";
+import { syncToFirestore, subscribeToFirestore, subscribeSyncStatus, getCachedSitesData, SyncStatus } from "./lib/firebase";
 import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
 import { getSitePlans, countPendingPlans } from "./lib/plansUtils";
 import {
@@ -53,7 +53,16 @@ const DEFAULT_SITE_TEMPLATE: SiteTrackerData = {
 };
 
 export default function App() {
-  const [sitesData, setSitesData] = useState<SitesMap>({});
+  const [sitesData, setSitesData] = useState<SitesMap>(() => {
+    const cached = getCachedSitesData();
+    if (cached && Object.keys(cached).length > 0) {
+      return cached;
+    }
+    return {
+      "Esplanade 6": createEsplanade6Template(),
+      "EGC3": createEGC3Template(),
+    };
+  });
   const [currentSite, setCurrentSite] = useState<string>("Esplanade 6");
   const [summary, setSummary] = useState<TrackerSummary>(DEFAULT_SUMMARY);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -187,6 +196,13 @@ export default function App() {
       setSitesData(newSitesMap);
       setSummary(computeSummary(newSitesMap, siteToUse, filters));
 
+      // Cache synchronously in local storage immediately
+      try {
+        localStorage.setItem("sites_tracker_cached_data", JSON.stringify(newSitesMap));
+      } catch (e) {
+        console.warn("[App] LocalStorage cache write error:", e);
+      }
+
       if (pendingSyncTimerRef.current) {
         clearTimeout(pendingSyncTimerRef.current);
         pendingSyncTimerRef.current = null;
@@ -198,10 +214,10 @@ export default function App() {
           await fetch("/api/sync-firestore", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: newSitesMap[siteToUse] || {} }),
+            body: JSON.stringify({ data: newSitesMap }),
           });
         } catch (e) {
-          console.warn("[App] Sync warning:", e);
+          console.warn("[App] Backend sync warning:", e);
         }
 
         try {
@@ -242,30 +258,20 @@ export default function App() {
       const res = await fetch("/api/works");
       if (res.ok) {
         const json = await res.json();
-        const esplanadeData = json.data || createEsplanade6Template();
-        const initialMap: SitesMap = {
-          "Esplanade 6": esplanadeData,
-          "EGC3": createEGC3Template(),
-        };
-        setSitesData((prev) => {
-          if (Object.keys(prev).length === 0) return initialMap;
-          // Ensure EGC3 exists if missing
-          if (!prev["EGC3"]) {
-            return { ...prev, "EGC3": createEGC3Template() };
-          }
-          return prev;
-        });
+        const serverData = json.data;
+        if (serverData && typeof serverData === "object" && Object.keys(serverData).length > 0) {
+          setSitesData((prev) => {
+            const cached = getCachedSitesData();
+            if (cached && Object.keys(cached).length > 0) {
+              // Merge: keep local user edits and plans from cache while incorporating missing sites from server
+              return { ...serverData, ...cached };
+            }
+            return serverData;
+          });
+        }
       }
     } catch (e) {
-      console.warn("[App] Failed to fetch initial data:", e);
-      setSitesData((prev) =>
-        Object.keys(prev).length > 0
-          ? prev
-          : {
-              "Esplanade 6": createEsplanade6Template(),
-              "EGC3": createEGC3Template(),
-            }
-      );
+      console.warn("[App] Server data fetch notice:", e);
     } finally {
       setIsSyncing(false);
     }
