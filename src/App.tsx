@@ -12,6 +12,7 @@ import { ManageSitesModal } from "./components/ManageSitesModal";
 import { ReportsModal } from "./components/ReportsModal";
 import { PhotoModal } from "./components/PhotoModal";
 import { PdfExportModal } from "./components/PdfExportModal";
+import { ToastNotification } from "./components/ToastNotification";
 import { syncToFirestore, subscribeToFirestore, subscribeSyncStatus, getCachedSitesData, SyncStatus } from "./lib/firebase";
 import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
 import { getSitePlans, countPendingPlans } from "./lib/plansUtils";
@@ -111,6 +112,16 @@ export default function App() {
     dateFilter: "all",
   });
 
+  // Toast notification state
+  const [toast, setToast] = useState<{
+    message: string;
+    type?: "success" | "info" | "error";
+  } | null>(null);
+
+  const showToast = useCallback((message: string, type: "success" | "info" | "error" = "success") => {
+    setToast({ message, type });
+  }, []);
+
   // Calculate summary dynamically reflecting current active site, map, and filters
   const computeSummary = useCallback(
     (allSitesMap: SitesMap, currentSiteName: string, currentFilters: FilterState): TrackerSummary => {
@@ -133,6 +144,7 @@ export default function App() {
       siteKeysToInspect.forEach((siteKey) => {
         const siteData = allSitesMap[siteKey] || {};
         Object.entries(siteData).forEach(([unitName, unit]) => {
+          if (unitName.startsWith("_")) return;
           if (currentFilters.unit !== "all" && currentFilters.unit !== unitName) return;
 
           if (!unitStats[unitName]) {
@@ -145,6 +157,51 @@ export default function App() {
             items.forEach((item) => {
               if (currentFilters.status !== "all" && item.status !== currentFilters.status) return;
               if (currentFilters.trade !== "all" && item.trade !== currentFilters.trade) return;
+              if (
+                currentFilters.priority &&
+                currentFilters.priority !== "all" &&
+                (item.priority || "Medium") !== currentFilters.priority
+              ) {
+                return;
+              }
+
+              // Date Filter logic for KPIs
+              if (currentFilters.dateFilter !== "all") {
+                const dateStr = item.updatedAt;
+                if (dateStr) {
+                  const itemDate = new Date(dateStr);
+                  if (!isNaN(itemDate.getTime())) {
+                    const now = new Date();
+                    if (currentFilters.dateFilter === "today") {
+                      const isSameDay =
+                        itemDate.getFullYear() === now.getFullYear() &&
+                        itemDate.getMonth() === now.getMonth() &&
+                        itemDate.getDate() === now.getDate();
+                      if (!isSameDay) return;
+                    } else if (currentFilters.dateFilter === "this_week") {
+                      const diffMs = now.getTime() - itemDate.getTime();
+                      const diffDays = diffMs / (1000 * 3600 * 24);
+                      if (diffDays < 0 || diffDays > 7) return;
+                    } else if (currentFilters.dateFilter === "this_month") {
+                      const isSameMonth =
+                        itemDate.getFullYear() === now.getFullYear() &&
+                        itemDate.getMonth() === now.getMonth();
+                      if (!isSameMonth) return;
+                    } else if (currentFilters.dateFilter === "custom") {
+                      if (currentFilters.startDate) {
+                        const start = new Date(currentFilters.startDate);
+                        start.setHours(0, 0, 0, 0);
+                        if (itemDate < start) return;
+                      }
+                      if (currentFilters.endDate) {
+                        const end = new Date(currentFilters.endDate);
+                        end.setHours(23, 59, 59, 999);
+                        if (itemDate > end) return;
+                      }
+                    }
+                  }
+                }
+              }
 
               if (currentFilters.search) {
                 const q = currentFilters.search.toLowerCase();
@@ -210,6 +267,7 @@ export default function App() {
 
       const executeSync = async () => {
         setIsSyncing(true);
+        let syncSuccess = false;
         try {
           await fetch("/api/sync-firestore", {
             method: "POST",
@@ -221,11 +279,14 @@ export default function App() {
         }
 
         try {
-          await syncToFirestore(newSitesMap);
+          syncSuccess = await syncToFirestore(newSitesMap);
         } catch (e) {
           console.warn("[App] Firestore sync warning:", e);
         } finally {
           setIsSyncing(false);
+          if (syncSuccess) {
+            showToast("Cloud Sync Complete — Data safely saved in the cloud ☁️", "success");
+          }
         }
       };
 
@@ -235,7 +296,7 @@ export default function App() {
         executeSync();
       }
     },
-    [computeSummary, filters]
+    [computeSummary, filters, showToast]
   );
 
   // Persist current active site data update
@@ -310,11 +371,16 @@ export default function App() {
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
-      await syncToFirestore(sitesData);
+      const ok = await syncToFirestore(sitesData);
+      if (ok) {
+        showToast("Cloud Sync Complete — Data safely saved in the cloud ☁️", "success");
+      } else {
+        showToast("Offline Mode — Queued for cloud sync when connected 📡", "info");
+      }
     } catch (e) {
       console.warn("[App] Manual sync warning:", e);
     } finally {
-      setTimeout(() => setIsSyncing(false), 500);
+      setTimeout(() => setIsSyncing(false), 300);
     }
   };
 
@@ -863,7 +929,7 @@ export default function App() {
         </div>
 
         {/* KPI Cards & Overall Progress */}
-        <SummaryCards summary={summary} />
+        <SummaryCards summary={summary} filters={filters} />
 
         {/* Filters Toolbar & Actions */}
         <Toolbar
@@ -978,6 +1044,15 @@ export default function App() {
         activeSiteName={currentSite}
         filters={filters}
       />
+
+      {/* Cloud Sync Completion Toast Notification */}
+      {toast && (
+        <ToastNotification
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,14 +1,91 @@
 import React from "react";
-import { CheckCircle2, Clock, AlertCircle, Layers, CheckSquare } from "lucide-react";
-import { TrackerSummary } from "../types";
+import { CheckCircle2, Clock, AlertCircle, Layers, CheckSquare, Calendar, Filter } from "lucide-react";
+import { TrackerSummary, FilterState } from "../types";
 
 interface SummaryCardsProps {
   summary: TrackerSummary;
+  filters?: FilterState;
 }
 
-export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
+export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) => {
+  const isDateFiltered = filters && filters.dateFilter !== "all";
+  const isPriorityFiltered = filters && filters.priority && filters.priority !== "all";
+  const isUnitFiltered = filters && filters.unit !== "all";
+  const isFloorFiltered = filters && filters.floor !== "all";
+  const isTradeFiltered = filters && filters.trade !== "all";
+  const isStatusFiltered = filters && filters.status !== "all";
+
+  const getDateFilterLabel = (df?: string) => {
+    switch (df) {
+      case "today":
+        return "Today (Daily)";
+      case "this_week":
+        return "This Week (7 Days)";
+      case "this_month":
+        return "This Month (30 Days)";
+      case "custom":
+        return "Custom Date Range";
+      default:
+        return df;
+    }
+  };
+
+  const hasAnyFilter =
+    isDateFiltered ||
+    isPriorityFiltered ||
+    isUnitFiltered ||
+    isFloorFiltered ||
+    isTradeFiltered ||
+    isStatusFiltered;
+
   return (
     <div className="space-y-4 mb-6">
+      {/* Active Filter Indicator Badge Bar */}
+      {hasAnyFilter && (
+        <div className="bg-indigo-50/80 border border-indigo-200/80 p-2.5 px-4 rounded-xl flex items-center justify-between gap-3 text-xs flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-indigo-950 flex items-center gap-1.5 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-indigo-600" />
+              KPI Summary Scope:
+            </span>
+            {isDateFiltered && (
+              <span className="bg-indigo-600 text-white font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
+                <Calendar className="w-3 h-3" />
+                Date: {getDateFilterLabel(filters?.dateFilter)}
+              </span>
+            )}
+            {isPriorityFiltered && (
+              <span className="bg-amber-600 text-white font-bold px-2.5 py-0.5 rounded-md">
+                Priority: {filters?.priority}
+              </span>
+            )}
+            {isUnitFiltered && (
+              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+                Unit: {filters?.unit}
+              </span>
+            )}
+            {isFloorFiltered && (
+              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+                Floor: {filters?.floor}
+              </span>
+            )}
+            {isTradeFiltered && (
+              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+                Trade: {filters?.trade}
+              </span>
+            )}
+            {isStatusFiltered && (
+              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+                Status: {filters?.status}
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] font-semibold text-indigo-700 italic">
+            KPI cards & progress bars update live with applied filters
+          </span>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Total Works */}
