@@ -13,7 +13,16 @@ import { ReportsModal } from "./components/ReportsModal";
 import { PhotoModal } from "./components/PhotoModal";
 import { PdfExportModal } from "./components/PdfExportModal";
 import { ToastNotification } from "./components/ToastNotification";
-import { syncToFirestore, subscribeToFirestore, subscribeSyncStatus, getCachedSitesData, SyncStatus } from "./lib/firebase";
+import {
+  syncToFirestore,
+  subscribeToFirestore,
+  subscribeSyncStatus,
+  getCachedSitesData,
+  saveToLocalCache,
+  mergeSitesMaps,
+  flushOfflineQueue,
+  SyncStatus,
+} from "./lib/firebase";
 import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
 import { getSitePlans, countPendingPlans } from "./lib/plansUtils";
 import {
@@ -254,11 +263,7 @@ export default function App() {
       setSummary(computeSummary(newSitesMap, siteToUse, filters));
 
       // Cache synchronously in local storage immediately
-      try {
-        localStorage.setItem("sites_tracker_cached_data", JSON.stringify(newSitesMap));
-      } catch (e) {
-        console.warn("[App] LocalStorage cache write error:", e);
-      }
+      saveToLocalCache(newSitesMap);
 
       if (pendingSyncTimerRef.current) {
         clearTimeout(pendingSyncTimerRef.current);
@@ -323,11 +328,9 @@ export default function App() {
         if (serverData && typeof serverData === "object" && Object.keys(serverData).length > 0) {
           setSitesData((prev) => {
             const cached = getCachedSitesData();
-            if (cached && Object.keys(cached).length > 0) {
-              // Merge: keep local user edits and plans from cache while incorporating missing sites from server
-              return { ...serverData, ...cached };
-            }
-            return serverData;
+            const merged = mergeSitesMaps(serverData, cached || prev);
+            saveToLocalCache(merged);
+            return merged;
           });
         }
       }
@@ -342,13 +345,20 @@ export default function App() {
   useEffect(() => {
     fetchData();
 
+    // Flush offline queue on mount if internet connection is restored
+    flushOfflineQueue();
+
     const unsubscribeData = subscribeToFirestore((cloudSites) => {
       // Protect local user typing/edits from being overwritten by real-time cloud snapshots
       if (Date.now() - lastLocalUpdateRef.current < 3500) {
         return;
       }
       if (cloudSites && Object.keys(cloudSites).length > 0) {
-        setSitesData(cloudSites);
+        setSitesData((prev) => {
+          const merged = mergeSitesMaps(cloudSites, prev);
+          saveToLocalCache(merged);
+          return merged;
+        });
       }
     });
 
@@ -356,9 +366,20 @@ export default function App() {
       setSyncStatus(st);
     });
 
+    // Mobile-friendly lifecycle handlers: flush offline queue on visibility change / page hide
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushOfflineQueue();
+      }
+    };
+    window.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handleVisibilityChange);
+
     return () => {
       if (unsubscribeData) unsubscribeData();
       if (unsubscribeStatus) unsubscribeStatus();
+      window.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handleVisibilityChange);
     };
   }, [fetchData]);
 

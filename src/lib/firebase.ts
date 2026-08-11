@@ -38,6 +38,40 @@ export function subscribeSyncStatus(listener: SyncStatusListener) {
   };
 }
 
+// Save data to localStorage safely with quota error fallback
+export function saveToLocalCache(sitesData: SitesMap): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const serialized = JSON.stringify(sitesData);
+    localStorage.setItem(CACHE_KEY, serialized);
+  } catch (e) {
+    console.warn("[LocalCache] Storage write error, attempting stripped backup...", e);
+    try {
+      const cleansedData = JSON.parse(JSON.stringify(sitesData));
+      for (const site of Object.values(cleansedData)) {
+        if (typeof site === "object" && site) {
+          for (const unit of Object.values(site as any)) {
+            if (typeof unit === "object" && unit) {
+              for (const items of Object.values(unit as any)) {
+                if (Array.isArray(items)) {
+                  items.forEach((item: any) => {
+                    if (item && item.photo && item.photo.length > 5000) {
+                      delete item.photo;
+                    }
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cleansedData));
+    } catch (err) {
+      console.error("[LocalCache] Critical error saving cache:", err);
+    }
+  }
+}
+
 // Load cached data if available
 export function getCachedSitesData(): SitesMap | null {
   try {
@@ -47,6 +81,111 @@ export function getCachedSitesData(): SitesMap | null {
     console.warn("[OfflineSync] Error reading cache:", e);
   }
   return null;
+}
+
+// Merge remote (cloud) and local (cache) maps so user additions are never lost
+export function mergeSitesMaps(remote: SitesMap | null | undefined, local: SitesMap | null | undefined): SitesMap {
+  if (!remote || Object.keys(remote).length === 0) return local || {};
+  if (!local || Object.keys(local).length === 0) return remote || {};
+
+  const merged: SitesMap = { ...remote };
+
+  for (const siteName of Object.keys(local)) {
+    if (!merged[siteName]) {
+      merged[siteName] = local[siteName];
+      continue;
+    }
+
+    const remoteSiteData = merged[siteName] || {};
+    const localSiteData = local[siteName] || {};
+    const mergedSiteData: any = { ...remoteSiteData };
+
+    for (const unitName of Object.keys(localSiteData)) {
+      if (unitName === "_plans") continue;
+
+      if (!mergedSiteData[unitName]) {
+        mergedSiteData[unitName] = localSiteData[unitName];
+        continue;
+      }
+
+      const remoteUnit = remoteSiteData[unitName] || {};
+      const localUnit = localSiteData[unitName] || {};
+      const mergedUnit: any = { ...remoteUnit };
+
+      for (const floorName of Object.keys(localUnit)) {
+        if (!mergedUnit[floorName]) {
+          mergedUnit[floorName] = localUnit[floorName];
+          continue;
+        }
+
+        const remoteItems = Array.isArray(remoteUnit[floorName]) ? remoteUnit[floorName] : [];
+        const localItems = Array.isArray(localUnit[floorName]) ? localUnit[floorName] : [];
+
+        const itemMap = new Map<string, any>();
+        remoteItems.forEach((item: any) => {
+          if (!item) return;
+          const key = item.id || `${item.area}-${item.work}`;
+          itemMap.set(key, item);
+        });
+
+        localItems.forEach((item: any) => {
+          if (!item) return;
+          const key = item.id || `${item.area}-${item.work}`;
+          const existing = itemMap.get(key);
+          if (!existing) {
+            itemMap.set(key, item);
+          } else {
+            const remoteTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+            const localTime = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+            if (localTime >= remoteTime) {
+              itemMap.set(key, item);
+            }
+          }
+        });
+
+        mergedUnit[floorName] = Array.from(itemMap.values());
+      }
+
+      mergedSiteData[unitName] = mergedUnit;
+    }
+
+    // Merge _plans
+    const remotePlans = remoteSiteData._plans || {};
+    const localPlans = localSiteData._plans || {};
+
+    const mergePlanCategory = (remoteList: any[] = [], localList: any[] = []) => {
+      const planMap = new Map<string, any>();
+      (Array.isArray(remoteList) ? remoteList : []).forEach((p) => {
+        if (p) planMap.set(p.id || p.title, p);
+      });
+      (Array.isArray(localList) ? localList : []).forEach((p) => {
+        if (!p) return;
+        const key = p.id || p.title;
+        const existing = planMap.get(key);
+        if (!existing) {
+          planMap.set(key, p);
+        } else {
+          const remoteTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const localTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+          if (localTime >= remoteTime) {
+            planMap.set(key, p);
+          }
+        }
+      });
+      return Array.from(planMap.values());
+    };
+
+    mergedSiteData._plans = {
+      issuesAndChallenges: mergePlanCategory(remotePlans.issuesAndChallenges, localPlans.issuesAndChallenges),
+      nextDayPlan: mergePlanCategory(remotePlans.nextDayPlan, localPlans.nextDayPlan),
+      weeklyPlan: mergePlanCategory(remotePlans.weeklyPlan, localPlans.weeklyPlan),
+      monthlyPlan: mergePlanCategory(remotePlans.monthlyPlan, localPlans.monthlyPlan),
+    };
+
+    merged[siteName] = mergedSiteData;
+  }
+
+  return merged;
 }
 
 // Flush pending offline updates to Firestore
@@ -79,11 +218,7 @@ export async function flushOfflineQueue(): Promise<boolean> {
 // Sync multi-site data to Firestore Cloud Database with offline queue fallback
 export async function syncToFirestore(sitesData: SitesMap): Promise<boolean> {
   // Always cache locally first
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(sitesData));
-  } catch (e) {
-    console.warn("[OfflineSync] Local storage write error:", e);
-  }
+  saveToLocalCache(sitesData);
 
   // Check connectivity
   if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -136,10 +271,11 @@ export function subscribeToFirestore(onSitesUpdate: (sites: SitesMap) => void) {
         const payload = docSnap.data();
         if (payload && payload.sites) {
           try {
-            const parsed = JSON.parse(payload.sites) as SitesMap;
-            // Update cache as well
-            localStorage.setItem(CACHE_KEY, payload.sites);
-            onSitesUpdate(parsed);
+            const remote = JSON.parse(payload.sites) as SitesMap;
+            const local = getCachedSitesData();
+            const merged = mergeSitesMaps(remote, local);
+            saveToLocalCache(merged);
+            onSitesUpdate(merged);
           } catch (e) {
             console.error("Failed to parse Firestore snapshot sites data", e);
           }

@@ -39,15 +39,24 @@ async function startServer() {
   // Proxy /api requests to Python backend
   app.use("/api", (req, res) => {
     const targetPath = `/api${req.url}`;
+    const headers: Record<string, string | string[] | undefined> = {
+      ...req.headers,
+      host: `127.0.0.1:${PYTHON_PORT}`,
+    };
+
+    let bodyData: string | null = null;
+    if (req.body && Object.keys(req.body).length > 0) {
+      bodyData = JSON.stringify(req.body);
+      headers["content-type"] = "application/json";
+      headers["content-length"] = Buffer.byteLength(bodyData).toString();
+    }
+
     const options: http.RequestOptions = {
       hostname: "127.0.0.1",
       port: PYTHON_PORT,
       path: targetPath,
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: `127.0.0.1:${PYTHON_PORT}`,
-      },
+      headers,
     };
 
     const proxyReq = http.request(options, (proxyRes) => {
@@ -57,20 +66,19 @@ async function startServer() {
 
     proxyReq.on("error", (err) => {
       console.error("[Node Proxy Error]:", err.message);
-      res.status(502).json({
-        error: "Python Backend Service Unavailable",
-        details: err.message,
-      });
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: "Python Backend Service Unavailable",
+          details: err.message,
+        });
+      }
     });
 
-    if (req.body && Object.keys(req.body).length > 0) {
-      const bodyData = JSON.stringify(req.body);
-      proxyReq.setHeader("Content-Type", "application/json");
-      proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
-      proxyReq.write(bodyData);
+    if (bodyData !== null) {
+      proxyReq.end(bodyData);
+    } else {
+      req.pipe(proxyReq, { end: true });
     }
-
-    req.pipe(proxyReq, { end: true });
   });
 
   // Vite middleware for dev or Static files for prod
