@@ -262,28 +262,32 @@ export async function syncToFirestore(sitesData: SitesMap): Promise<boolean> {
 export function subscribeToFirestore(onSitesUpdate: (sites: SitesMap) => void) {
   try {
     const docRef = doc(db, "trackers", DOCUMENT_ID);
-    return onSnapshot(docRef, (docSnap) => {
-      // Ignore local pending writes echo because local state is already updated locally
-      if (docSnap.metadata.hasPendingWrites) {
-        return;
-      }
-      if (docSnap.exists()) {
-        const payload = docSnap.data();
-        if (payload && payload.sites) {
-          try {
-            const remote = JSON.parse(payload.sites) as SitesMap;
-            const local = getCachedSitesData();
-            const merged = mergeSitesMaps(remote, local);
-            saveToLocalCache(merged);
-            onSitesUpdate(merged);
-          } catch (e) {
-            console.error("Failed to parse Firestore snapshot sites data", e);
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        // Ignore local pending writes echo because local state is already updated locally
+        if (docSnap.metadata.hasPendingWrites) {
+          return;
+        }
+        if (docSnap.exists()) {
+          const payload = docSnap.data();
+          if (payload && payload.sites) {
+            try {
+              const remote = JSON.parse(payload.sites) as SitesMap;
+              if (remote && typeof remote === "object" && Object.keys(remote).length > 0) {
+                saveToLocalCache(remote);
+                onSitesUpdate(remote);
+              }
+            } catch (e) {
+              console.error("Failed to parse Firestore snapshot sites data", e);
+            }
           }
         }
+      },
+      (err) => {
+        console.warn("[Firestore] Subscription warning:", err);
       }
-    }, (err) => {
-      console.warn("[Firestore] Subscription warning:", err);
-    });
+    );
   } catch (e) {
     console.warn("[Firestore] Subscription init error:", e);
     return () => {};

@@ -354,11 +354,8 @@ export default function App() {
         return;
       }
       if (cloudSites && Object.keys(cloudSites).length > 0) {
-        setSitesData((prev) => {
-          const merged = mergeSitesMaps(cloudSites, prev);
-          saveToLocalCache(merged);
-          return merged;
-        });
+        setSitesData(cloudSites);
+        saveToLocalCache(cloudSites);
       }
     });
 
@@ -1041,6 +1038,7 @@ export default function App() {
         isOpen={isTradeModalOpen}
         onClose={() => setIsTradeModalOpen(false)}
         data={activeData}
+        filters={filters}
         onSelectTradeFilter={(t) => handleFilterChange("trade", t)}
       />
 

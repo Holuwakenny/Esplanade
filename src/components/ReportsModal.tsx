@@ -37,28 +37,30 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
 
   // Helper to determine if an item matches the chosen report timeframe
   const isItemInPeriod = (updatedAt?: string) => {
-    if (!updatedAt) return true; // Include items without explicit timestamp in overall count
+    if (!updatedAt) return true;
     const itemDate = new Date(updatedAt);
-    const targetDate = new Date(selectedDate);
-
     if (isNaN(itemDate.getTime())) return true;
 
+    if (!selectedDate) return true;
+    const parts = selectedDate.split("-");
+    if (parts.length < 3) return true;
+
+    const targetYear = parseInt(parts[0], 10);
+    const targetMonth = parseInt(parts[1], 10) - 1; // 0-indexed month
+    const targetDay = parseInt(parts[2], 10);
+
+    const itemY = itemDate.getFullYear();
+    const itemM = itemDate.getMonth();
+    const itemD = itemDate.getDate();
+
     if (reportPeriod === "daily") {
-      return (
-        itemDate.getFullYear() === targetDate.getFullYear() &&
-        itemDate.getMonth() === targetDate.getMonth() &&
-        itemDate.getDate() === targetDate.getDate()
-      );
+      return itemY === targetYear && itemM === targetMonth && itemD === targetDay;
     } else if (reportPeriod === "weekly") {
-      // 7 days window ending on selectedDate
-      const diffMs = targetDate.getTime() - itemDate.getTime();
-      const diffDays = diffMs / (1000 * 3600 * 24);
-      return diffDays >= 0 && diffDays <= 7;
+      const targetEnd = new Date(targetYear, targetMonth, targetDay, 23, 59, 59, 999);
+      const startMs = targetEnd.getTime() - (7 * 24 * 60 * 60 * 1000);
+      return itemDate.getTime() >= startMs && itemDate.getTime() <= targetEnd.getTime();
     } else if (reportPeriod === "monthly") {
-      return (
-        itemDate.getFullYear() === targetDate.getFullYear() &&
-        itemDate.getMonth() === targetDate.getMonth()
-      );
+      return itemY === targetYear && itemM === targetMonth;
     }
     return true;
   };
@@ -85,20 +87,21 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
       if (unitName.startsWith("_")) return;
       Object.entries(unitData).forEach(([floorName, items]) => {
         (items as WorkItem[]).forEach((item) => {
-          totalWorks++;
-          if (item.status === "Completed") completedWorks++;
-          else if (item.status === "In Progress") inProgressWorks++;
-          else pendingWorks++;
-
-          const trade = item.trade || "General";
-          if (!tradeStats[trade]) {
-            tradeStats[trade] = { total: 0, completed: 0, pending: 0 };
-          }
-          tradeStats[trade].total++;
-          if (item.status === "Completed") tradeStats[trade].completed++;
-          else tradeStats[trade].pending++;
-
+          // Strictly filter metrics and breakdowns by chosen report date period
           if (isItemInPeriod(item.updatedAt)) {
+            totalWorks++;
+            if (item.status === "Completed") completedWorks++;
+            else if (item.status === "In Progress") inProgressWorks++;
+            else pendingWorks++;
+
+            const trade = item.trade || "General";
+            if (!tradeStats[trade]) {
+              tradeStats[trade] = { total: 0, completed: 0, pending: 0 };
+            }
+            tradeStats[trade].total++;
+            if (item.status === "Completed") tradeStats[trade].completed++;
+            else tradeStats[trade].pending++;
+
             allFilteredItems.push({
               ...item,
               siteName,
