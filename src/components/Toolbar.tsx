@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Printer, RotateCcw, Download, PieChart, Search, Filter, Building2, Calendar, FileText, Building, FolderPlus, FileDown, AlertCircle } from "lucide-react";
+import { Plus, Printer, RotateCcw, Download, PieChart, Search, Filter, Building2, Calendar, FileText, Building, FolderPlus, FileDown, AlertCircle, Sparkles, Database, ArrowUpDown } from "lucide-react";
 import { FilterState, DateFilterType } from "../types";
 
 interface ToolbarProps {
@@ -14,6 +14,8 @@ interface ToolbarProps {
   onOpenManageUnits: () => void;
   onOpenTradeAnalytics: () => void;
   onOpenReports: () => void;
+  onOpenExecutiveSummary?: () => void;
+  onOpenStorageOptions?: () => void;
   onOpenPdfExport?: () => void;
   onExportCsv: () => void;
   onPrint: () => void;
@@ -32,6 +34,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenManageUnits,
   onOpenTradeAnalytics,
   onOpenReports,
+  onOpenExecutiveSummary,
+  onOpenStorageOptions,
   onOpenPdfExport,
   onExportCsv,
   onPrint,
@@ -63,6 +67,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <span>Add Work</span>
           </button>
 
+          {onOpenExecutiveSummary && (
+            <button
+              onClick={onOpenExecutiveSummary}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-900 hover:bg-indigo-950 text-white rounded-lg text-sm font-bold shadow-xs transition-all cursor-pointer ring-1 ring-indigo-400/40"
+              title="Generate comprehensive 5-Question Word (.docx / .doc) Summary with Photos"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>5-Point Word Summary</span>
+            </button>
+          )}
+
           {onOpenPdfExport && (
             <button
               onClick={onOpenPdfExport}
@@ -70,7 +85,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               title="Save all site work and picture captions to PDF"
             >
               <FileDown className="w-4 h-4" />
-              <span>Save to PDF (Photos & Captions)</span>
+              <span>Save to PDF</span>
             </button>
           )}
 
@@ -109,6 +124,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <span>Trades</span>
           </button>
 
+          {onOpenStorageOptions && (
+            <button
+              onClick={onOpenStorageOptions}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium border border-slate-200 transition-all cursor-pointer shadow-2xs"
+              title="View free storage & database options guide"
+            >
+              <Database className="w-4 h-4 text-indigo-600" />
+              <span>Storage</span>
+            </button>
+          )}
+
           <button
             onClick={onExportCsv}
             className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium border border-slate-200 transition-all cursor-pointer shadow-2xs"
@@ -139,7 +165,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       {/* Filters Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-7 gap-3 pt-3 border-t border-slate-100 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-3 border-t border-slate-100 text-xs">
         {/* Site / Category Filter */}
         <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
           <label className="font-bold text-indigo-900 flex items-center gap-1">
@@ -156,6 +182,25 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 {s}
               </option>
             ))}
+          </select>
+        </div>
+
+        {/* Sort By Selector */}
+        <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
+          <label className="font-bold text-indigo-900 flex items-center gap-1">
+            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600" /> Sort Items By
+          </label>
+          <select
+            value={filters.sortBy || "site"}
+            onChange={(e) => onFilterChange("sortBy", e.target.value)}
+            className="p-2 bg-indigo-50/90 border border-indigo-300 rounded-lg text-slate-900 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+          >
+            <option value="site">🏗️ Site & Location (A→Z)</option>
+            <option value="priority">⚡ Priority (High → Low)</option>
+            <option value="floor">🏢 Floor & Area</option>
+            <option value="trade">🛠️ Trade / Artisan</option>
+            <option value="status">📊 Status (Active first)</option>
+            <option value="date">📅 Date Updated (Recent)</option>
           </select>
         </div>
 

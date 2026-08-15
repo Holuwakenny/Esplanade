@@ -75,4 +75,5 @@ export interface FilterState {
   dateFilter: DateFilterType;
   startDate?: string;
   endDate?: string;
+  sortBy?: "site" | "priority" | "floor" | "trade" | "status" | "date";
 }

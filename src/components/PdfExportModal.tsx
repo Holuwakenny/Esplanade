@@ -36,7 +36,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const [includePhotos, setIncludePhotos] = useState<boolean>(true);
   const [includeNotes, setIncludeNotes] = useState<boolean>(true);
   const [includePlans, setIncludePlans] = useState<boolean>(true);
-  const [sortBy, setSortBy] = useState<"priority" | "floor" | "trade">("priority");
+  const [sortBy, setSortBy] = useState<"site" | "priority" | "floor" | "trade">("site");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const printContainerRef = useRef<HTMLDivElement>(null);
 
@@ -130,14 +130,26 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   const sortedExportItems = [...exportItems].sort((a, b) => {
-    if (sortBy === "priority") {
+    if (sortBy === "site") {
+      const sC = a.siteName.localeCompare(b.siteName);
+      if (sC !== 0) return sC;
+      const uC = a.unitName.localeCompare(b.unitName);
+      if (uC !== 0) return uC;
+      const fC = a.floorName.localeCompare(b.floorName);
+      if (fC !== 0) return fC;
+      return (a.item.area || "").localeCompare(b.item.area || "");
+    } else if (sortBy === "priority") {
       const rA = PRIORITY_RANK[a.item.priority || "Medium"] || 3;
       const rB = PRIORITY_RANK[b.item.priority || "Medium"] || 3;
       if (rA !== rB) return rA - rB;
+      const sC = a.siteName.localeCompare(b.siteName);
+      if (sC !== 0) return sC;
     } else if (sortBy === "trade") {
       const tA = a.item.trade || "";
       const tB = b.item.trade || "";
       if (tA !== tB) return tA.localeCompare(tB);
+      const sC = a.siteName.localeCompare(b.siteName);
+      if (sC !== 0) return sC;
     }
     const sC = a.siteName.localeCompare(b.siteName);
     if (sC !== 0) return sC;
@@ -296,9 +308,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Item Sorting Order in PDF</label>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as "priority" | "floor" | "trade")}
+                  onChange={(e) => setSortBy(e.target.value as "site" | "priority" | "floor" | "trade")}
                   className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-800 text-xs font-semibold focus:outline-none"
                 >
+                  <option value="site">🏗️ Construction Site (A → Z)</option>
                   <option value="priority">⚡ Priority (Critical & High First)</option>
                   <option value="floor">🏢 Floor & Area Location</option>
                   <option value="trade">🛠️ Trade / Artisan Group</option>

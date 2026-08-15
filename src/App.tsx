@@ -10,6 +10,8 @@ import { TradeAnalyticsModal } from "./components/TradeAnalyticsModal";
 import { ManageUnitsModal } from "./components/ManageUnitsModal";
 import { ManageSitesModal } from "./components/ManageSitesModal";
 import { ReportsModal } from "./components/ReportsModal";
+import { ExecutiveSummaryModal } from "./components/ExecutiveSummaryModal";
+import { StorageOptionsModal } from "./components/StorageOptionsModal";
 import { PhotoModal } from "./components/PhotoModal";
 import { PdfExportModal } from "./components/PdfExportModal";
 import { ToastNotification } from "./components/ToastNotification";
@@ -18,6 +20,7 @@ import {
   subscribeToFirestore,
   subscribeSyncStatus,
   getCachedSitesData,
+  getCachedSitesDataAsync,
   saveToLocalCache,
   mergeSitesMaps,
   flushOfflineQueue,
@@ -100,6 +103,8 @@ export default function App() {
   const [isManageSitesModalOpen, setIsManageSitesModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+  const [isExecutiveSummaryOpen, setIsExecutiveSummaryOpen] = useState(false);
+  const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [activePhotoItem, setActivePhotoItem] = useState<{
     siteName: string;
@@ -119,6 +124,7 @@ export default function App() {
     priority: "all",
     search: "",
     dateFilter: "all",
+    sortBy: "site",
   });
 
   // Toast notification state
@@ -343,6 +349,13 @@ export default function App() {
 
   // Initial load & real-time Firestore subscription (runs ONCE on mount)
   useEffect(() => {
+    // 1. Asynchronously load complete state with photos from IndexedDB immediately
+    getCachedSitesDataAsync().then((cached) => {
+      if (cached && Object.keys(cached).length > 0) {
+        setSitesData((prev) => mergeSitesMaps(cached, prev));
+      }
+    });
+
     fetchData();
 
     // Flush offline queue on mount if internet connection is restored
@@ -354,8 +367,11 @@ export default function App() {
         return;
       }
       if (cloudSites && Object.keys(cloudSites).length > 0) {
-        setSitesData(cloudSites);
-        saveToLocalCache(cloudSites);
+        setSitesData((prev) => {
+          const merged = mergeSitesMaps(cloudSites, prev);
+          saveToLocalCache(merged);
+          return merged;
+        });
       }
     });
 
@@ -962,6 +978,8 @@ export default function App() {
           onOpenManageUnits={() => setIsManageUnitsModalOpen(true)}
           onOpenTradeAnalytics={() => setIsTradeModalOpen(true)}
           onOpenReports={() => setIsReportsModalOpen(true)}
+          onOpenExecutiveSummary={() => setIsExecutiveSummaryOpen(true)}
+          onOpenStorageOptions={() => setIsStorageModalOpen(true)}
           onOpenPdfExport={() => setIsPdfModalOpen(true)}
           onExportCsv={handleExportCsv}
           onPrint={handlePrint}
@@ -1047,6 +1065,22 @@ export default function App() {
         onClose={() => setIsReportsModalOpen(false)}
         sites={sitesData}
         currentSite={currentSite}
+        onOpenExecutiveSummary={() => {
+          setIsReportsModalOpen(false);
+          setIsExecutiveSummaryOpen(true);
+        }}
+      />
+
+      <ExecutiveSummaryModal
+        isOpen={isExecutiveSummaryOpen}
+        onClose={() => setIsExecutiveSummaryOpen(false)}
+        sites={sitesData}
+        currentSite={currentSite}
+      />
+
+      <StorageOptionsModal
+        isOpen={isStorageModalOpen}
+        onClose={() => setIsStorageModalOpen(false)}
       />
 
       <PhotoModal

@@ -172,13 +172,13 @@ export const WorkTable: React.FC<WorkTableProps> = ({
   // Determine sites to render
   let sitesToRender: string[] = [];
   if (filters.site === "all") {
-    sitesToRender = Object.keys(sitesData);
+    sitesToRender = Object.keys(sitesData).sort((a, b) => a.localeCompare(b));
   } else if (sitesData[filters.site]) {
     sitesToRender = [filters.site];
   } else if (sitesData[activeSiteName]) {
     sitesToRender = [activeSiteName];
   } else {
-    sitesToRender = Object.keys(sitesData).slice(0, 1);
+    sitesToRender = Object.keys(sitesData).sort((a, b) => a.localeCompare(b)).slice(0, 1);
   }
 
   const siteListOptions = allSitesList.length > 0 ? allSitesList : Object.keys(sitesData);
@@ -266,6 +266,63 @@ export const WorkTable: React.FC<WorkTableProps> = ({
               });
             });
           });
+        });
+
+        const PRIORITY_RANK: Record<string, number> = {
+          Critical: 1,
+          High: 2,
+          Medium: 3,
+          Low: 4,
+        };
+        const STATUS_RANK: Record<string, number> = {
+          "In Progress": 1,
+          Pending: 2,
+          Completed: 3,
+        };
+
+        // Sort items by site, priority, trade, status, floor, or date
+        flatRows.sort((a, b) => {
+          const sortBy = filters.sortBy || "site";
+          if (sortBy === "site") {
+            const sC = a.siteName.localeCompare(b.siteName);
+            if (sC !== 0) return sC;
+            const uC = a.unitName.localeCompare(b.unitName);
+            if (uC !== 0) return uC;
+            const fC = a.floorName.localeCompare(b.floorName);
+            if (fC !== 0) return fC;
+            return (a.item.area || "").localeCompare(b.item.area || "");
+          } else if (sortBy === "priority") {
+            const rA = PRIORITY_RANK[a.item.priority || "Medium"] || 3;
+            const rB = PRIORITY_RANK[b.item.priority || "Medium"] || 3;
+            if (rA !== rB) return rA - rB;
+            const sC = a.siteName.localeCompare(b.siteName);
+            if (sC !== 0) return sC;
+          } else if (sortBy === "trade") {
+            const tA = a.item.trade || "";
+            const tB = b.item.trade || "";
+            if (tA !== tB) return tA.localeCompare(tB);
+            const sC = a.siteName.localeCompare(b.siteName);
+            if (sC !== 0) return sC;
+          } else if (sortBy === "status") {
+            const stA = STATUS_RANK[a.item.status] || 2;
+            const stB = STATUS_RANK[b.item.status] || 2;
+            if (stA !== stB) return stA - stB;
+            const sC = a.siteName.localeCompare(b.siteName);
+            if (sC !== 0) return sC;
+          } else if (sortBy === "date") {
+            const dA = a.item.updatedAt ? new Date(a.item.updatedAt).getTime() : 0;
+            const dB = b.item.updatedAt ? new Date(b.item.updatedAt).getTime() : 0;
+            if (dA !== dB) return dB - dA;
+            const sC = a.siteName.localeCompare(b.siteName);
+            if (sC !== 0) return sC;
+          }
+          const sC = a.siteName.localeCompare(b.siteName);
+          if (sC !== 0) return sC;
+          const uC = a.unitName.localeCompare(b.unitName);
+          if (uC !== 0) return uC;
+          const fC = a.floorName.localeCompare(b.floorName);
+          if (fC !== 0) return fC;
+          return (a.item.area || "").localeCompare(b.item.area || "");
         });
 
         const sitePct = siteTotal > 0 ? Math.round((siteCompleted / siteTotal) * 100) : 0;

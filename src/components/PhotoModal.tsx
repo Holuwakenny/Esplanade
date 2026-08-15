@@ -101,10 +101,10 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
   };
 
-  // Compress & resize image to data URL
+  // Compress & resize image to lightweight data URL for high-performance sync & storage
   const compressImage = (imageElement: HTMLImageElement | HTMLVideoElement): string => {
     const canvas = document.createElement("canvas");
-    const maxDim = 1000;
+    const maxDim = 800;
 
     let width = imageElement instanceof HTMLVideoElement ? imageElement.videoWidth : imageElement.naturalWidth;
     let height = imageElement instanceof HTMLVideoElement ? imageElement.videoHeight : imageElement.naturalHeight;
@@ -134,7 +134,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
       ctx.drawImage(imageElement, 0, 0, width, height);
     }
 
-    return canvas.toDataURL("image/jpeg", 0.75);
+    return canvas.toDataURL("image/jpeg", 0.65);
   };
 
   const handleCapturePhoto = () => {

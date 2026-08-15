@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 import { SitesMap } from "../types";
+import { saveSitesToIndexedDB, loadSitesFromIndexedDB } from "./indexedDbCache";
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -38,14 +39,20 @@ export function subscribeSyncStatus(listener: SyncStatusListener) {
   };
 }
 
-// Save data to localStorage safely with quota error fallback
+// Save data to localStorage and IndexedDB with resilient fallback
 export function saveToLocalCache(sitesData: SitesMap): void {
+  // 1. Always save complete unstripped state (including all photos) into IndexedDB
+  saveSitesToIndexedDB(sitesData).catch((err) =>
+    console.warn("[IndexedDB] Save warning:", err)
+  );
+
+  // 2. Also save to localStorage
   if (typeof localStorage === "undefined") return;
   try {
     const serialized = JSON.stringify(sitesData);
     localStorage.setItem(CACHE_KEY, serialized);
   } catch (e) {
-    console.warn("[LocalCache] Storage write error, attempting stripped backup...", e);
+    console.warn("[LocalCache] LocalStorage quota exceeded, caching optimized lightweight metadata for storage fallback...", e);
     try {
       const cleansedData = JSON.parse(JSON.stringify(sitesData));
       for (const site of Object.values(cleansedData)) {
@@ -55,8 +62,9 @@ export function saveToLocalCache(sitesData: SitesMap): void {
               for (const items of Object.values(unit as any)) {
                 if (Array.isArray(items)) {
                   items.forEach((item: any) => {
-                    if (item && item.photo && item.photo.length > 5000) {
-                      delete item.photo;
+                    // Truncate heavy photo arrays only for localStorage fallback if needed, full photos remain safely in IndexedDB
+                    if (item && Array.isArray(item.photos) && item.photos.length > 2) {
+                      item.photos = item.photos.slice(0, 2);
                     }
                   });
                 }
@@ -67,12 +75,21 @@ export function saveToLocalCache(sitesData: SitesMap): void {
       }
       localStorage.setItem(CACHE_KEY, JSON.stringify(cleansedData));
     } catch (err) {
-      console.error("[LocalCache] Critical error saving cache:", err);
+      console.error("[LocalCache] Critical error writing fallback localStorage:", err);
     }
   }
 }
 
-// Load cached data if available
+// Load cached data from IndexedDB or LocalStorage
+export async function getCachedSitesDataAsync(): Promise<SitesMap | null> {
+  const idbData = await loadSitesFromIndexedDB();
+  if (idbData && Object.keys(idbData).length > 0) {
+    return idbData;
+  }
+  return getCachedSitesData();
+}
+
+// Synchronous cached data getter for initial render
 export function getCachedSitesData(): SitesMap | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -138,7 +155,11 @@ export function mergeSitesMaps(remote: SitesMap | null | undefined, local: Sites
             const remoteTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
             const localTime = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
             if (localTime >= remoteTime) {
-              itemMap.set(key, item);
+              const combinedPhotos = (item.photos && item.photos.length > 0) ? item.photos : (existing.photos || []);
+              itemMap.set(key, { ...item, photos: combinedPhotos });
+            } else {
+              const combinedPhotos = (existing.photos && existing.photos.length > 0) ? existing.photos : (item.photos || []);
+              itemMap.set(key, { ...existing, photos: combinedPhotos });
             }
           }
         });
