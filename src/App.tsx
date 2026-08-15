@@ -36,6 +36,7 @@ import {
   WorkItem,
   WorkStatus,
   WorkPriority,
+  SiteStat,
 } from "./types";
 
 const DEFAULT_SUMMARY: TrackerSummary = {
@@ -146,10 +147,11 @@ export default function App() {
       let completed = 0;
       const tradeCounts: { [trade: string]: number } = {};
       const unitStats: { [unit: string]: { total: number; completed: number; pct: number } } = {};
+      const siteStats: { [siteName: string]: SiteStat } = {};
 
       const siteKeysToInspect =
         currentFilters.site === "all"
-          ? Object.keys(allSitesMap)
+          ? Object.keys(allSitesMap).sort((a, b) => a.localeCompare(b))
           : [
               currentFilters.site && allSitesMap[currentFilters.site]
                 ? currentFilters.site
@@ -158,12 +160,27 @@ export default function App() {
 
       siteKeysToInspect.forEach((siteKey) => {
         const siteData = allSitesMap[siteKey] || {};
+        if (!siteStats[siteKey]) {
+          siteStats[siteKey] = {
+            total: 0,
+            completed: 0,
+            inProgress: 0,
+            pending: 0,
+            pct: 0,
+            unitStats: {},
+          };
+        }
+        const currSiteStat = siteStats[siteKey];
+
         Object.entries(siteData).forEach(([unitName, unit]) => {
           if (unitName.startsWith("_")) return;
           if (currentFilters.unit !== "all" && currentFilters.unit !== unitName) return;
 
           if (!unitStats[unitName]) {
             unitStats[unitName] = { total: 0, completed: 0, pct: 0 };
+          }
+          if (!currSiteStat.unitStats[unitName]) {
+            currSiteStat.unitStats[unitName] = { total: 0, completed: 0, pct: 0 };
           }
 
           Object.entries(unit).forEach(([floorName, items]) => {
@@ -229,12 +246,20 @@ export default function App() {
 
               total++;
               unitStats[unitName].total++;
+              currSiteStat.total++;
+              currSiteStat.unitStats[unitName].total++;
 
-              if (item.status === "Pending") pending++;
-              else if (item.status === "In Progress") inProgress++;
-              else if (item.status === "Completed") {
+              if (item.status === "Pending") {
+                pending++;
+                currSiteStat.pending++;
+              } else if (item.status === "In Progress") {
+                inProgress++;
+                currSiteStat.inProgress++;
+              } else if (item.status === "Completed") {
                 completed++;
                 unitStats[unitName].completed++;
+                currSiteStat.completed++;
+                currSiteStat.unitStats[unitName].completed++;
               }
 
               const trade = item.trade || "Unassigned";
@@ -249,8 +274,17 @@ export default function App() {
         st.pct = st.total > 0 ? Math.round((st.completed / st.total) * 100) : 0;
       });
 
+      Object.keys(siteStats).forEach((s) => {
+        const st = siteStats[s];
+        st.pct = st.total > 0 ? Math.round((st.completed / st.total) * 100) : 0;
+        Object.keys(st.unitStats).forEach((u) => {
+          const ust = st.unitStats[u];
+          ust.pct = ust.total > 0 ? Math.round((ust.completed / ust.total) * 100) : 0;
+        });
+      });
+
       const overallPct = total > 0 ? Math.round((completed / total) * 100) : 0;
-      return { total, pending, inProgress, completed, overallPct, tradeCounts, unitStats };
+      return { total, pending, inProgress, completed, overallPct, tradeCounts, unitStats, siteStats };
     },
     []
   );

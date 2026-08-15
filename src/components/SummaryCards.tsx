@@ -1,6 +1,6 @@
 import React from "react";
-import { CheckCircle2, Clock, AlertCircle, Layers, CheckSquare, Calendar, Filter } from "lucide-react";
-import { TrackerSummary, FilterState } from "../types";
+import { CheckCircle2, Clock, AlertCircle, Layers, CheckSquare, Calendar, Filter, Building, Building2 } from "lucide-react";
+import { TrackerSummary, FilterState, SiteStat, UnitStat } from "../types";
 
 interface SummaryCardsProps {
   summary: TrackerSummary;
@@ -38,6 +38,10 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
     isTradeFiltered ||
     isStatusFiltered;
 
+  const sitesArray: [string, SiteStat][] = summary.siteStats
+    ? (Object.entries(summary.siteStats) as [string, SiteStat][])
+    : [];
+
   return (
     <div className="space-y-4 mb-6">
       {/* Active Filter Indicator Badge Bar */}
@@ -60,22 +64,22 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
               </span>
             )}
             {isUnitFiltered && (
-              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+              <span className="bg-slate-800 text-white font-medium px-2.5 py-0.5 rounded-md">
                 Unit: {filters?.unit}
               </span>
             )}
             {isFloorFiltered && (
-              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+              <span className="bg-slate-800 text-white font-medium px-2.5 py-0.5 rounded-md">
                 Floor: {filters?.floor}
               </span>
             )}
             {isTradeFiltered && (
-              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+              <span className="bg-slate-800 text-white font-medium px-2.5 py-0.5 rounded-md">
                 Trade: {filters?.trade}
               </span>
             )}
             {isStatusFiltered && (
-              <span className="bg-slate-800 text-white font-medium px-2 py-0.5 rounded-md">
+              <span className="bg-slate-800 text-white font-medium px-2.5 py-0.5 rounded-md">
                 Status: {filters?.status}
               </span>
             )}
@@ -149,8 +153,9 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
         </div>
       </div>
 
-      {/* Overall Completion Progress Bar & Unit Quick Breakdown */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+      {/* Overall Completion Progress Bar & Site-by-Site Grouped Breakdown */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
+        {/* Overall Close-Out Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-indigo-600" />
@@ -163,15 +168,93 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
           </span>
         </div>
 
-        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200/50">
+        {/* Master Overall Progress Bar */}
+        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200/60">
           <div
             className="bg-emerald-500 h-full rounded-full transition-all duration-500 ease-out"
             style={{ width: `${summary.overallPct}%` }}
           />
         </div>
 
-        {/* Unit-by-Unit Status Chips */}
-        {summary.unitStats && Object.keys(summary.unitStats).length > 0 && (
+        {/* Grouped by Sites Section */}
+        {sitesArray.length > 0 ? (
+          <div className="space-y-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                <Building className="w-3.5 h-3.5 text-indigo-600" />
+                Close-Out Progress Grouped by Sites
+              </span>
+              <span className="text-[11px] font-medium text-slate-400">
+                {sitesArray.length} {sitesArray.length === 1 ? "Site" : "Sites"} Active
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {sitesArray.map(([siteName, siteStat]) => (
+                <div
+                  key={siteName}
+                  className="bg-slate-50/90 rounded-xl p-3.5 border border-slate-200/80 space-y-2.5 transition-all hover:bg-slate-50"
+                >
+                  {/* Site Row Header */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs shrink-0">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-slate-900 text-sm">{siteName}</span>
+                        <span className="text-[11px] text-slate-500 ml-2">
+                          ({siteStat.completed}/{siteStat.total} works completed)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                        {siteStat.pct}% Completed
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Site Progress Bar */}
+                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${siteStat.pct}%` }}
+                    />
+                  </div>
+
+                  {/* Units under this specific site */}
+                  {siteStat.unitStats && Object.keys(siteStat.unitStats).length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
+                      {(Object.entries(siteStat.unitStats) as [string, UnitStat][]).map(([unit, uStat]) => (
+                        <div
+                          key={unit}
+                          className="bg-white p-2 rounded-lg border border-slate-200/70 flex flex-col justify-between shadow-2xs"
+                        >
+                          <div className="flex justify-between font-bold text-[11px] text-slate-800">
+                            <span>{unit}</span>
+                            <span className="text-indigo-600">{uStat.pct}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                            <div
+                              className="bg-indigo-600 h-full rounded-full"
+                              style={{ width: `${uStat.pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] font-medium text-slate-400 mt-1">
+                            {uStat.completed}/{uStat.total} done
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : summary.unitStats && Object.keys(summary.unitStats).length > 0 ? (
+          /* Fallback Unit-by-Unit Status Chips */
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-3 border-t border-slate-100 text-xs">
             {Object.entries(summary.unitStats).map(([unit, statsData]) => {
               const stats = statsData as { total: number; completed: number; pct: number };
@@ -197,7 +280,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
               );
             })}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

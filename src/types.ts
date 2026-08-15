@@ -29,6 +29,15 @@ export interface UnitStat {
   pct: number;
 }
 
+export interface SiteStat {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
+  pct: number;
+  unitStats: { [unitName: string]: UnitStat };
+}
+
 export interface SitesMap {
   [siteName: string]: SiteTrackerData;
 }
@@ -41,6 +50,7 @@ export interface TrackerSummary {
   overallPct: number;
   tradeCounts: { [trade: string]: number };
   unitStats: { [unitName: string]: UnitStat };
+  siteStats?: { [siteName: string]: SiteStat };
 }
 
 export type DateFilterType = "all" | "today" | "this_week" | "this_month" | "custom";
