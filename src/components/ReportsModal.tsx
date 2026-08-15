@@ -29,7 +29,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [preparedBy, setPreparedBy] = useState<string>("Eng. Kehinde / Site Coordinator");
+  const [preparedBy, setPreparedBy] = useState<string>("Kehinde Fadogba(Arc.) / Site Coordinator");
   const [includePhotos, setIncludePhotos] = useState<boolean>(true);
   const [includePlans, setIncludePlans] = useState<boolean>(true);
   const [sortBy, setSortBy] = useState<"site" | "priority" | "floor" | "trade">("site");
