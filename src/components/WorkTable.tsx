@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Trash2, Plus, Camera, Building, Layers, Flame, AlertTriangle, Activity, ArrowDown, MessageSquare, X, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { SitesMap, WorkItem, FilterState, WorkStatus, WorkPriority } from "../types";
+import { isItemMatchingDateFilter, formatDateDisplay } from "../utils/dateUtils";
 
 interface WorkTableProps {
   sitesData: SitesMap;
@@ -74,10 +75,7 @@ const DEFAULT_FLOORS = [
 ];
 
 const formatDate = (dateStr?: string) => {
-  if (!dateStr) return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const parsed = new Date(dateStr);
-  if (isNaN(parsed.getTime())) return dateStr;
-  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDisplay(dateStr);
 };
 
 // Priority Badge Component with Color-Coded Icons
@@ -208,39 +206,16 @@ export const WorkTable: React.FC<WorkTableProps> = ({
               if (filters.trade !== "all" && item.trade !== filters.trade) return;
               if (filters.priority && filters.priority !== "all" && (item.priority || "Medium") !== filters.priority) return;
 
-              // Date filtering
-              if (filters.dateFilter !== "all" && item.updatedAt) {
-                const itemDate = new Date(item.updatedAt);
-                if (!isNaN(itemDate.getTime())) {
-                  const now = new Date();
-                  if (filters.dateFilter === "today") {
-                    const isSameDay =
-                      itemDate.getFullYear() === now.getFullYear() &&
-                      itemDate.getMonth() === now.getMonth() &&
-                      itemDate.getDate() === now.getDate();
-                    if (!isSameDay) return;
-                  } else if (filters.dateFilter === "this_week") {
-                    const diffMs = now.getTime() - itemDate.getTime();
-                    const diffDays = diffMs / (1000 * 3600 * 24);
-                    if (diffDays < 0 || diffDays > 7) return;
-                  } else if (filters.dateFilter === "this_month") {
-                    const isSameMonth =
-                      itemDate.getFullYear() === now.getFullYear() &&
-                      itemDate.getMonth() === now.getMonth();
-                    if (!isSameMonth) return;
-                  } else if (filters.dateFilter === "custom") {
-                    if (filters.startDate) {
-                      const start = new Date(filters.startDate);
-                      start.setHours(0, 0, 0, 0);
-                      if (itemDate < start) return;
-                    }
-                    if (filters.endDate) {
-                      const end = new Date(filters.endDate);
-                      end.setHours(23, 59, 59, 999);
-                      if (itemDate > end) return;
-                    }
-                  }
-                }
+              // Date filtering (strictly enforces daily/weekly/monthly/custom filters)
+              if (
+                !isItemMatchingDateFilter(
+                  item.updatedAt,
+                  filters.dateFilter,
+                  filters.startDate,
+                  filters.endDate
+                )
+              ) {
+                return;
               }
 
               // Search check

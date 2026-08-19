@@ -1,8 +1,9 @@
 import React, { useState, useRef } from "react";
-import { X, Calendar, FileText, Printer, Clock, Building, PieChart, Download, Image as ImageIcon, Sparkles } from "lucide-react";
+import { X, Calendar, FileText, Printer, Clock, Building, PieChart, Download, Image as ImageIcon, Sparkles, Info } from "lucide-react";
 import { SitesMap, WorkItem } from "../types";
 import { getSitePlans } from "../lib/plansUtils";
 import { SitePlansReportSection } from "./SitePlansReportSection";
+import { isItemInReportPeriod, formatDateDisplay } from "../utils/dateUtils";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -52,37 +53,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
     if (siteNames.length > 0) setSelectedSites([siteNames[0]]);
   };
 
-  // Helper to determine if an item matches the chosen report timeframe
-  const isItemInPeriod = (updatedAt?: string) => {
-    if (!updatedAt) return true;
-    const itemDate = new Date(updatedAt);
-    if (isNaN(itemDate.getTime())) return true;
-
-    if (!selectedDate) return true;
-    const parts = selectedDate.split("-");
-    if (parts.length < 3) return true;
-
-    const targetYear = parseInt(parts[0], 10);
-    const targetMonth = parseInt(parts[1], 10) - 1; // 0-indexed month
-    const targetDay = parseInt(parts[2], 10);
-
-    const itemY = itemDate.getFullYear();
-    const itemM = itemDate.getMonth();
-    const itemD = itemDate.getDate();
-
-    if (reportPeriod === "daily") {
-      return itemY === targetYear && itemM === targetMonth && itemD === targetDay;
-    } else if (reportPeriod === "weekly") {
-      const targetEnd = new Date(targetYear, targetMonth, targetDay, 23, 59, 59, 999);
-      const startMs = targetEnd.getTime() - (7 * 24 * 60 * 60 * 1000);
-      return itemDate.getTime() >= startMs && itemDate.getTime() <= targetEnd.getTime();
-    } else if (reportPeriod === "monthly") {
-      return itemY === targetYear && itemM === targetMonth;
-    }
-    return true;
-  };
-
-  // Collect data based on multi-site selection
+  // Collect data based on multi-site selection and chosen report period
   const relevantSites = selectedSites.length > 0 ? selectedSites : siteNames;
 
   interface ItemWithMeta extends WorkItem {
@@ -105,7 +76,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
       Object.entries(unitData).forEach(([floorName, items]) => {
         (items as WorkItem[]).forEach((item) => {
           // Strictly filter metrics and breakdowns by chosen report date period
-          if (isItemInPeriod(item.updatedAt)) {
+          if (isItemInReportPeriod(item.updatedAt, reportPeriod, selectedDate)) {
             totalWorks++;
             if (item.status === "Completed") completedWorks++;
             else if (item.status === "In Progress") inProgressWorks++;

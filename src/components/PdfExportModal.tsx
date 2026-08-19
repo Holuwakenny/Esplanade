@@ -3,6 +3,7 @@ import { X, FileDown, Image, CheckSquare, Building, FileText, AlertTriangle, Che
 import { SitesMap, WorkItem, FilterState } from "../types";
 import { getSitePlans } from "../lib/plansUtils";
 import { SitePlansReportSection } from "./SitePlansReportSection";
+import { isItemMatchingDateFilter } from "../utils/dateUtils";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -69,42 +70,16 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
           if (filters.trade !== "all" && item.trade !== filters.trade) return;
           if (filters.priority && filters.priority !== "all" && (item.priority || "Medium") !== filters.priority) return;
 
-          // Date Filter check
-          if (filters.dateFilter && filters.dateFilter !== "all") {
-            const dateStr = item.updatedAt;
-            if (dateStr) {
-              const itemDate = new Date(dateStr);
-              if (!isNaN(itemDate.getTime())) {
-                const now = new Date();
-                if (filters.dateFilter === "today") {
-                  const isSameDay =
-                    itemDate.getFullYear() === now.getFullYear() &&
-                    itemDate.getMonth() === now.getMonth() &&
-                    itemDate.getDate() === now.getDate();
-                  if (!isSameDay) return;
-                } else if (filters.dateFilter === "this_week") {
-                  const diffMs = now.getTime() - itemDate.getTime();
-                  const diffDays = diffMs / (1000 * 3600 * 24);
-                  if (diffDays < 0 || diffDays > 7) return;
-                } else if (filters.dateFilter === "this_month") {
-                  const isSameMonth =
-                    itemDate.getFullYear() === now.getFullYear() &&
-                    itemDate.getMonth() === now.getMonth();
-                  if (!isSameMonth) return;
-                } else if (filters.dateFilter === "custom") {
-                  if (filters.startDate) {
-                    const start = new Date(filters.startDate);
-                    start.setHours(0, 0, 0, 0);
-                    if (itemDate < start) return;
-                  }
-                  if (filters.endDate) {
-                    const end = new Date(filters.endDate);
-                    end.setHours(23, 59, 59, 999);
-                    if (itemDate > end) return;
-                  }
-                }
-              }
-            }
+          // Date Filter check (strictly enforces date filter)
+          if (
+            !isItemMatchingDateFilter(
+              item.updatedAt,
+              filters.dateFilter,
+              filters.startDate,
+              filters.endDate
+            )
+          ) {
+            return;
           }
 
           exportItems.push({

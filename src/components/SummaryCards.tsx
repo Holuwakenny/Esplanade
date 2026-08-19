@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckCircle2, Clock, AlertCircle, Layers, CheckSquare, Calendar, Filter, Building, Building2 } from "lucide-react";
 import { TrackerSummary, FilterState, SiteStat, UnitStat } from "../types";
+import { getDateFilterLabel } from "../utils/dateUtils";
 
 interface SummaryCardsProps {
   summary: TrackerSummary;
@@ -14,21 +15,6 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
   const isFloorFiltered = filters && filters.floor !== "all";
   const isTradeFiltered = filters && filters.trade !== "all";
   const isStatusFiltered = filters && filters.status !== "all";
-
-  const getDateFilterLabel = (df?: string) => {
-    switch (df) {
-      case "today":
-        return "Today (Daily)";
-      case "this_week":
-        return "This Week (7 Days)";
-      case "this_month":
-        return "This Month (30 Days)";
-      case "custom":
-        return "Custom Date Range";
-      default:
-        return df;
-    }
-  };
 
   const hasAnyFilter =
     isDateFiltered ||

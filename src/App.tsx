@@ -27,6 +27,7 @@ import {
   SyncStatus,
 } from "./lib/firebase";
 import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
+import { isItemMatchingDateFilter } from "./utils/dateUtils";
 import { getSitePlans, countPendingPlans } from "./lib/plansUtils";
 import {
   SiteTrackerData,
@@ -197,42 +198,16 @@ export default function App() {
                 return;
               }
 
-              // Date Filter logic for KPIs
-              if (currentFilters.dateFilter !== "all") {
-                const dateStr = item.updatedAt;
-                if (dateStr) {
-                  const itemDate = new Date(dateStr);
-                  if (!isNaN(itemDate.getTime())) {
-                    const now = new Date();
-                    if (currentFilters.dateFilter === "today") {
-                      const isSameDay =
-                        itemDate.getFullYear() === now.getFullYear() &&
-                        itemDate.getMonth() === now.getMonth() &&
-                        itemDate.getDate() === now.getDate();
-                      if (!isSameDay) return;
-                    } else if (currentFilters.dateFilter === "this_week") {
-                      const diffMs = now.getTime() - itemDate.getTime();
-                      const diffDays = diffMs / (1000 * 3600 * 24);
-                      if (diffDays < 0 || diffDays > 7) return;
-                    } else if (currentFilters.dateFilter === "this_month") {
-                      const isSameMonth =
-                        itemDate.getFullYear() === now.getFullYear() &&
-                        itemDate.getMonth() === now.getMonth();
-                      if (!isSameMonth) return;
-                    } else if (currentFilters.dateFilter === "custom") {
-                      if (currentFilters.startDate) {
-                        const start = new Date(currentFilters.startDate);
-                        start.setHours(0, 0, 0, 0);
-                        if (itemDate < start) return;
-                      }
-                      if (currentFilters.endDate) {
-                        const end = new Date(currentFilters.endDate);
-                        end.setHours(23, 59, 59, 999);
-                        if (itemDate > end) return;
-                      }
-                    }
-                  }
-                }
+              // Date Filter logic for KPIs (strictly enforces exclusions for daily/weekly/monthly/custom filters)
+              if (
+                !isItemMatchingDateFilter(
+                  item.updatedAt,
+                  currentFilters.dateFilter,
+                  currentFilters.startDate,
+                  currentFilters.endDate
+                )
+              ) {
+                return;
               }
 
               if (currentFilters.search) {
