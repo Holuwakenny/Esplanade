@@ -33,12 +33,13 @@ export function updateSitePlans(
   siteName: string,
   newPlans: SitePlans
 ): SitesMap {
-  const updatedMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-  if (!updatedMap[siteName]) {
-    updatedMap[siteName] = {};
-  }
-  (updatedMap[siteName] as any)._plans = newPlans;
-  return updatedMap;
+  return {
+    ...sitesData,
+    [siteName]: {
+      ...(sitesData[siteName] || {}),
+      _plans: newPlans,
+    } as any,
+  };
 }
 
 export function countPendingPlans(plans: SitePlans): {

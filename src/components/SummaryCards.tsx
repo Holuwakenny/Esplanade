@@ -190,14 +190,27 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
                       <div>
                         <span className="font-extrabold text-slate-900 text-sm">{siteName}</span>
                         <span className="text-[11px] text-slate-500 ml-2">
-                          ({siteStat.completed}/{siteStat.total} works completed)
+                          ({siteStat.completed} of {siteStat.total} works completed)
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        {siteStat.pct}% Completed
+                    {/* 5 Points KPI Metrics by Site */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200" title="Total scope work items">
+                        Total: <strong>{siteStat.total}</strong>
+                      </span>
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200" title="Completed work items">
+                        Done: <strong>{siteStat.completed}</strong>
+                      </span>
+                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" title="Ongoing in-progress work items">
+                        Ongoing: <strong>{siteStat.inProgress}</strong>
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title="Pending work items">
+                        Pending: <strong>{siteStat.pending}</strong>
+                      </span>
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                        {siteStat.pct}% Rate
                       </span>
                     </div>
                   </div>

@@ -1,7 +1,153 @@
-import React, { useState } from "react";
-import { Trash2, Plus, Camera, Building, Layers, Flame, AlertTriangle, Activity, ArrowDown, MessageSquare, X, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Trash2,
+  Plus,
+  Camera,
+  Building,
+  Layers,
+  Flame,
+  AlertTriangle,
+  Activity,
+  ArrowDown,
+  MessageSquare,
+  X,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  CheckSquare,
+  Square,
+  MinusSquare,
+  Copy,
+  Check,
+} from "lucide-react";
 import { SitesMap, WorkItem, FilterState, WorkStatus, WorkPriority } from "../types";
 import { isItemMatchingDateFilter, formatDateDisplay } from "../utils/dateUtils";
+
+// Isolated debounced textarea that prevents global re-renders and memory allocations while typing
+export const DebouncedTextarea: React.FC<{
+  value?: string;
+  onCommit: (val: string) => void;
+  className?: string;
+  placeholder?: string;
+  rows?: number;
+  autoFocus?: boolean;
+}> = React.memo(({ value: initialValue = "", onCommit, className, placeholder, rows = 2, autoFocus }) => {
+  const [val, setVal] = useState<string>(initialValue || "");
+  const commitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const valRef = useRef<string>(val);
+  valRef.current = val;
+
+  useEffect(() => {
+    setVal(initialValue || "");
+    valRef.current = initialValue || "";
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextVal = e.target.value;
+    setVal(nextVal);
+    valRef.current = nextVal;
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = setTimeout(() => {
+      onCommit(nextVal);
+    }, 350);
+  };
+
+  const handleBlur = () => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    if (valRef.current !== initialValue) {
+      onCommit(valRef.current);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    };
+  }, []);
+
+  return (
+    <textarea
+      rows={rows}
+      value={val}
+      autoFocus={autoFocus}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+});
+
+// Isolated debounced input for mobile cards that prevents keystroke memory thrashing
+export const DebouncedInput: React.FC<{
+  value?: string;
+  onCommit: (val: string) => void;
+  className?: string;
+  placeholder?: string;
+  type?: string;
+  autoFocus?: boolean;
+}> = React.memo(({ value: initialValue = "", onCommit, className, placeholder, type = "text", autoFocus }) => {
+  const [val, setVal] = useState<string>(initialValue || "");
+  const commitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const valRef = useRef<string>(val);
+  valRef.current = val;
+
+  useEffect(() => {
+    setVal(initialValue || "");
+    valRef.current = initialValue || "";
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVal = e.target.value;
+    setVal(nextVal);
+    valRef.current = nextVal;
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = setTimeout(() => {
+      onCommit(nextVal);
+    }, 350);
+  };
+
+  const handleBlur = () => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    if (valRef.current !== initialValue) {
+      onCommit(valRef.current);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    };
+  }, []);
+
+  return (
+    <input
+      type={type}
+      value={val}
+      autoFocus={autoFocus}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+});
+
+export interface SelectedItemTarget {
+  siteName: string;
+  unitName: string;
+  floorName: string;
+  realIndex: number;
+  id?: string;
+  itemArea?: string;
+  itemWork?: string;
+}
 
 interface WorkTableProps {
   sitesData: SitesMap;
@@ -43,13 +189,32 @@ interface WorkTableProps {
     floor: string,
     index: number
   ) => void;
+  onDuplicateItem?: (
+    siteName: string,
+    unit: string,
+    floor: string,
+    index: number
+  ) => void;
   onAddQuickItem: (siteName: string, unit: string, floor: string) => void;
+  onBatchCompleteFloor?: (siteName: string, unit: string, floor: string) => void;
   onOpenPhotos: (
     siteName: string,
     unit: string,
     floor: string,
     index: number,
     item: WorkItem
+  ) => void;
+  // Multi-select batch actions
+  onBatchUpdateStatus?: (
+    targets: Array<{ siteName: string; unitName: string; floorName: string; realIndex: number; id?: string }>,
+    newStatus: WorkStatus
+  ) => void;
+  onBatchUpdatePriority?: (
+    targets: Array<{ siteName: string; unitName: string; floorName: string; realIndex: number; id?: string }>,
+    newPriority: WorkPriority
+  ) => void;
+  onBatchDelete?: (
+    targets: Array<{ siteName: string; unitName: string; floorName: string; realIndex: number; id?: string }>
   ) => void;
 }
 
@@ -161,11 +326,141 @@ export const WorkTable: React.FC<WorkTableProps> = ({
   onMoveItemUnit,
   onMoveItemFloor,
   onRemoveItem,
+  onDuplicateItem,
   onAddQuickItem,
+  onBatchCompleteFloor,
   onOpenPhotos,
+  onBatchUpdateStatus,
+  onBatchUpdatePriority,
+  onBatchDelete,
 }) => {
   // Track open comment modal/popover row key
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+
+  // Multi-select state
+  const [selectedItems, setSelectedItems] = useState<Record<string, SelectedItemTarget>>({});
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState<boolean>(false);
+  const [batchActionNotice, setBatchActionNotice] = useState<string | null>(null);
+
+  const getItemKey = (site: string, unit: string, floor: string, index: number) =>
+    `${site}___${unit}___${floor}___${index}`;
+
+  const selectedCount = Object.keys(selectedItems).length;
+
+  const toggleSelectItem = (
+    site: string,
+    unit: string,
+    floor: string,
+    index: number,
+    id?: string,
+    itemArea?: string,
+    itemWork?: string
+  ) => {
+    const key = getItemKey(site, unit, floor, index);
+    setSelectedItems((prev) => {
+      const next = { ...prev };
+      if (next[key]) {
+        delete next[key];
+      } else {
+        next[key] = {
+          siteName: site,
+          unitName: unit,
+          floorName: floor,
+          realIndex: index,
+          id,
+          itemArea,
+          itemWork,
+        };
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllForSite = (siteName: string, rows: FlatRow[]) => {
+    if (rows.length === 0) return;
+    const siteRowKeys = rows.map((r) => getItemKey(r.siteName, r.unitName, r.floorName, r.realIndex));
+    const allSelected = siteRowKeys.every((k) => Boolean(selectedItems[k]));
+
+    setSelectedItems((prev) => {
+      const next = { ...prev };
+      if (allSelected) {
+        siteRowKeys.forEach((k) => delete next[k]);
+      } else {
+        rows.forEach((r) => {
+          const k = getItemKey(r.siteName, r.unitName, r.floorName, r.realIndex);
+          next[k] = {
+            siteName: r.siteName,
+            unitName: r.unitName,
+            floorName: r.floorName,
+            realIndex: r.realIndex,
+            id: r.item.id,
+            itemArea: r.item.area,
+            itemWork: r.item.work,
+          };
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedItems({});
+  };
+
+  const handleBatchStatusUpdate = (status: WorkStatus) => {
+    const targets = Object.values(selectedItems) as SelectedItemTarget[];
+    if (targets.length === 0) return;
+
+    if (onBatchUpdateStatus) {
+      onBatchUpdateStatus(targets, status);
+    } else {
+      targets.forEach((t) => {
+        onUpdateItem(t.siteName, t.unitName, t.floorName, t.realIndex, "status", status);
+      });
+    }
+    setBatchActionNotice(`Updated ${targets.length} item(s) to "${status}"`);
+    setTimeout(() => setBatchActionNotice(null), 3000);
+    handleClearSelection();
+  };
+
+  const handleBatchPriorityUpdate = (priority: WorkPriority) => {
+    const targets = Object.values(selectedItems) as SelectedItemTarget[];
+    if (targets.length === 0) return;
+
+    if (onBatchUpdatePriority) {
+      onBatchUpdatePriority(targets, priority);
+    } else {
+      targets.forEach((t) => {
+        onUpdateItem(t.siteName, t.unitName, t.floorName, t.realIndex, "priority", priority);
+      });
+    }
+    setBatchActionNotice(`Updated priority to "${priority}" for ${targets.length} item(s)`);
+    setTimeout(() => setBatchActionNotice(null), 3000);
+    handleClearSelection();
+  };
+
+  const handleBatchDeleteConfirmed = () => {
+    const targets = Object.values(selectedItems) as SelectedItemTarget[];
+    if (targets.length === 0) {
+      setIsConfirmDeleteOpen(false);
+      return;
+    }
+
+    if (onBatchDelete) {
+      onBatchDelete(targets);
+    } else {
+      const sorted = [...targets].sort((a, b) => b.realIndex - a.realIndex);
+      sorted.forEach((t) => {
+        onRemoveItem(t.siteName, t.unitName, t.floorName, t.realIndex);
+      });
+    }
+
+    setBatchActionNotice(`Successfully deleted ${targets.length} item(s)`);
+    setTimeout(() => setBatchActionNotice(null), 3000);
+    handleClearSelection();
+    setIsConfirmDeleteOpen(false);
+  };
 
   // Determine sites to render
   let sitesToRender: string[] = [];
@@ -321,6 +616,13 @@ export const WorkTable: React.FC<WorkTableProps> = ({
         const defaultFloor =
           filters.floor !== "all" ? filters.floor : "Ground Floor";
 
+        const siteSelectedItems = flatRows.filter((r) =>
+          Boolean(selectedItems[getItemKey(r.siteName, r.unitName, r.floorName, r.realIndex)])
+        );
+        const siteSelectedCount = siteSelectedItems.length;
+        const isSiteAllSelected = flatRows.length > 0 && siteSelectedCount === flatRows.length;
+        const isSiteSomeSelected = siteSelectedCount > 0 && siteSelectedCount < flatRows.length;
+
         return (
           <div key={siteName} className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
             {/* Header Bar for Site Category */}
@@ -337,6 +639,12 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700">
                       {flatRows.length} Items Listed
                     </span>
+                    {siteSelectedCount > 0 && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500 text-white flex items-center gap-1 shadow-xs">
+                        <Check className="w-3 h-3" />
+                        {siteSelectedCount} Selected
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {siteCompleted} of {siteTotal} Total Completed ({sitePct}%)
@@ -344,9 +652,9 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
                 <div className="flex items-center gap-2">
-                  <div className="w-24 sm:w-32 bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                  <div className="w-20 sm:w-28 bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
                     <div
                       className="bg-emerald-400 h-full rounded-full transition-all"
                       style={{ width: `${sitePct}%` }}
@@ -354,6 +662,32 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                   </div>
                   <span className="text-xs font-bold text-emerald-300">{sitePct}%</span>
                 </div>
+
+                {/* Multi-Select Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextMode = !isMultiSelectMode;
+                    setIsMultiSelectMode(nextMode);
+                    if (!nextMode && selectedCount > 0) {
+                      handleClearSelection();
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-lg font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs min-h-[36px] border ${
+                    isMultiSelectMode || siteSelectedCount > 0
+                      ? "bg-indigo-600 text-white border-indigo-400 hover:bg-indigo-500"
+                      : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
+                  }`}
+                  title="Toggle Multi-Select Mode to batch update or delete items"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  <span>{isMultiSelectMode ? "Multi-Select Active" : "Multi-Select"}</span>
+                  {siteSelectedCount > 0 && (
+                    <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-white text-indigo-950 font-black text-[10px]">
+                      {siteSelectedCount}
+                    </span>
+                  )}
+                </button>
 
                 <button
                   onClick={() => onAddQuickItem(siteName, defaultUnit, defaultFloor)}
@@ -365,12 +699,99 @@ export const WorkTable: React.FC<WorkTableProps> = ({
               </div>
             </div>
 
+            {/* Site-Level Batch Actions Banner (Shown when items are selected or multi-select is toggled) */}
+            {(siteSelectedCount > 0 || isMultiSelectMode) && (
+              <div className="bg-indigo-50/95 border-b border-indigo-100 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-700">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-indigo-950 flex items-center gap-1.5">
+                    <CheckSquare className="w-4 h-4 text-indigo-600" />
+                    <span>
+                      <strong>{siteSelectedCount}</strong> of {flatRows.length} items selected in <em>{siteName}</em>
+                    </span>
+                  </span>
+                  <span className="text-slate-300 hidden sm:inline">|</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSelectAllForSite(siteName, flatRows)}
+                    className="text-indigo-700 hover:text-indigo-900 font-bold underline cursor-pointer text-xs"
+                  >
+                    {isSiteAllSelected ? "Deselect All Visible in Site" : "Select All Visible in Site"}
+                  </button>
+                  {selectedCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearSelection}
+                      className="text-slate-500 hover:text-slate-800 underline cursor-pointer text-xs"
+                    >
+                      Clear All ({selectedCount})
+                    </button>
+                  )}
+                </div>
+
+                {siteSelectedCount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-600">Quick Batch:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleBatchStatusUpdate("Completed")}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Mark all selected items in this site as Completed"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Completed</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBatchStatusUpdate("In Progress")}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Mark all selected items in this site as In Progress"
+                    >
+                      <Clock className="w-3 h-3" />
+                      <span>In Progress</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBatchStatusUpdate("Pending")}
+                      className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Mark all selected items in this site as Pending"
+                    >
+                      <AlertCircle className="w-3 h-3" />
+                      <span>Pending</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsConfirmDeleteOpen(true)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Delete all selected items"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Delete ({siteSelectedCount})</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* DESKTOP TABLE VIEW (md and up) */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[1050px] text-xs">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider text-[11px]">
-                    <th className="p-3 w-10 text-center border-r border-slate-200/80 whitespace-nowrap">#</th>
+                    <th className="p-2.5 w-14 text-center border-r border-slate-200/80 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={isSiteAllSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isSiteSomeSelected;
+                          }}
+                          onChange={() => toggleSelectAllForSite(siteName, flatRows)}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                          title={isSiteAllSelected ? "Deselect all rows in this site" : "Select all rows in this site"}
+                        />
+                        <span className="text-[10px] text-slate-600 font-bold">#</span>
+                      </div>
+                    </th>
                     <th className="p-3 w-40 border-r border-slate-200/80 whitespace-nowrap">Area / Location</th>
                     <th className="p-3 border-r border-slate-200/80 min-w-[240px] whitespace-nowrap">Outstanding Work & Comments</th>
                     <th className="p-3 w-32 border-r border-slate-200/80 whitespace-nowrap">Trade</th>
@@ -410,29 +831,55 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                       const rowKey = `${currentSite}-${unitName}-${floorName}-${realIndex}`;
                       const isEditingNote = editingNoteKey === rowKey;
 
+                      const itemKey = getItemKey(currentSite, unitName, floorName, realIndex);
+                      const isRowSelected = Boolean(selectedItems[itemKey]);
+
                       return (
                         <tr
                           key={item.id || rowKey}
-                          className="hover:bg-indigo-50/20 transition-colors group align-top"
+                          className={`${
+                            isRowSelected
+                              ? "bg-indigo-50/80 border-l-4 border-l-indigo-600 shadow-inner"
+                              : "hover:bg-indigo-50/20"
+                          } transition-colors group align-top`}
                         >
-                          {/* 1. No. */}
+                          {/* 1. Selection Checkbox + No. */}
                           <td className="p-2.5 text-center text-slate-500 font-semibold border-r border-slate-100">
-                            {idx + 1}
+                            <div className="flex items-center justify-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={isRowSelected}
+                                onChange={() =>
+                                  toggleSelectItem(
+                                    currentSite,
+                                    unitName,
+                                    floorName,
+                                    realIndex,
+                                    item.id,
+                                    item.area,
+                                    item.work
+                                  )
+                                }
+                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                                title="Select item for batch actions"
+                              />
+                              <span className="text-[11px] font-medium text-slate-600">{idx + 1}</span>
+                            </div>
                           </td>
 
                           {/* 2. Area / Location */}
                           <td className="p-1.5 border-r border-slate-100 whitespace-normal break-words">
-                            <textarea
+                            <DebouncedTextarea
                               rows={2}
                               value={item.area}
-                              onChange={(e) =>
+                              onCommit={(val) =>
                                 onUpdateItem(
                                   currentSite,
                                   unitName,
                                   floorName,
                                   realIndex,
                                   "area",
-                                  e.target.value
+                                  val
                                 )
                               }
                               className="w-full p-1.5 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent focus:border-indigo-400 rounded text-slate-800 focus:outline-none transition-all font-semibold text-xs whitespace-pre-wrap break-words resize-y"
@@ -442,17 +889,17 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
                           {/* 3. Outstanding Work & Redesigned Comments/Notes */}
                           <td className="p-1.5 border-r border-slate-100 space-y-2 whitespace-normal break-words">
-                            <textarea
+                            <DebouncedTextarea
                               rows={2}
                               value={item.work}
-                              onChange={(e) =>
+                              onCommit={(val) =>
                                 onUpdateItem(
                                   currentSite,
                                   unitName,
                                   floorName,
                                   realIndex,
                                   "work",
-                                  e.target.value
+                                  val
                                 )
                               }
                               className="w-full p-1.5 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent focus:border-indigo-400 rounded text-slate-900 font-medium focus:outline-none transition-all text-xs whitespace-pre-wrap break-words resize-y"
@@ -497,18 +944,18 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                                     <X className="w-4 h-4" />
                                   </button>
                                 </div>
-                                <textarea
+                                <DebouncedTextarea
                                   rows={3}
                                   value={item.notes || ""}
                                   autoFocus
-                                  onChange={(e) =>
+                                  onCommit={(val) =>
                                     onUpdateItem(
                                       currentSite,
                                       unitName,
                                       floorName,
                                       realIndex,
                                       "notes",
-                                      e.target.value
+                                      val
                                     )
                                   }
                                   placeholder="Type artisan notes, instructions, or inspection observations..."
@@ -550,17 +997,17 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
                           {/* 4. Trade / Artisan */}
                           <td className="p-1.5 border-r border-slate-100 whitespace-normal break-words">
-                            <textarea
+                            <DebouncedTextarea
                               rows={2}
                               value={item.trade}
-                              onChange={(e) =>
+                              onCommit={(val) =>
                                 onUpdateItem(
                                   currentSite,
                                   unitName,
                                   floorName,
                                   realIndex,
                                   "trade",
-                                  e.target.value
+                                  val
                                 )
                               }
                               className="w-full p-1.5 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent focus:border-indigo-400 rounded text-slate-700 focus:outline-none transition-all font-medium text-xs whitespace-pre-wrap break-words resize-y"
@@ -732,6 +1179,19 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                                 )}
                               </button>
 
+                              {/* Duplicate trigger */}
+                              {onDuplicateItem && (
+                                <button
+                                  onClick={() =>
+                                    onDuplicateItem(currentSite, unitName, floorName, realIndex)
+                                  }
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-200 transition-colors cursor-pointer"
+                                  title="Duplicate row"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
                               {/* Delete trigger */}
                               <button
                                 onClick={() =>
@@ -754,18 +1214,38 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
             {/* MOBILE CARD VIEW (sm and below) */}
             <div className="block md:hidden p-3 space-y-3 bg-slate-50/60">
-              <div className="flex items-center justify-between gap-2 pb-1">
-                <span className="text-xs font-bold text-slate-700">
-                  Showing {flatRows.length} Work Items
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onAddQuickItem(siteName, defaultUnit, defaultFloor)}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 active:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Add Row</span>
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700">
+                    {flatRows.length} Items Listed
+                  </span>
+                  {siteSelectedCount > 0 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-2xs">
+                      {siteSelectedCount} Selected
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSelectAllForSite(siteName, flatRows)}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-bold text-xs flex items-center gap-1 shadow-2xs cursor-pointer active:bg-slate-100"
+                    title={isSiteAllSelected ? "Deselect all rows in this site" : "Select all rows in this site"}
+                  >
+                    <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>{isSiteAllSelected ? "Deselect" : "Select All"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onAddQuickItem(siteName, defaultUnit, defaultFloor)}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 active:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add</span>
+                  </button>
+                </div>
               </div>
 
               {flatRows.length === 0 ? (
@@ -780,14 +1260,38 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                   const isEditingNote = editingNoteKey === rowKey;
                   const floorOptions = Array.from(new Set([...DEFAULT_FLOORS, floorName]));
 
+                  const itemKey = getItemKey(currentSite, unitName, floorName, realIndex);
+                  const isRowSelected = Boolean(selectedItems[itemKey]);
+
                   return (
                     <div
                       key={item.id || rowKey}
-                      className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 space-y-3"
+                      className={`bg-white rounded-xl border ${
+                        isRowSelected
+                          ? "border-indigo-400 ring-2 ring-indigo-400/40 bg-indigo-50/20"
+                          : "border-slate-200"
+                      } shadow-2xs p-3.5 space-y-3 transition-all`}
                     >
-                      {/* Top Bar: Item #, Priority Badge, Status Dropdown */}
+                      {/* Top Bar: Checkbox, Item #, Priority Badge, Status Dropdown */}
                       <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                         <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isRowSelected}
+                            onChange={() =>
+                              toggleSelectItem(
+                                currentSite,
+                                unitName,
+                                floorName,
+                                realIndex,
+                                item.id,
+                                item.area,
+                                item.work
+                              )
+                            }
+                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                            title="Select item for batch actions"
+                          />
                           <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center border border-slate-200">
                             #{idx + 1}
                           </span>
@@ -857,17 +1361,17 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                               </button>
                             ) : null}
                           </div>
-                          <input
+                          <DebouncedInput
                             type="text"
                             value={item.area}
-                            onChange={(e) =>
+                            onCommit={(val) =>
                               onUpdateItem(
                                 currentSite,
                                 unitName,
                                 floorName,
                                 realIndex,
                                 "area",
-                                e.target.value
+                                val
                               )
                             }
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:font-normal placeholder:text-slate-400"
@@ -897,17 +1401,17 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                               </button>
                             ) : null}
                           </div>
-                          <textarea
+                          <DebouncedTextarea
                             rows={2}
                             value={item.work}
-                            onChange={(e) =>
+                            onCommit={(val) =>
                               onUpdateItem(
                                 currentSite,
                                 unitName,
                                 floorName,
                                 realIndex,
                                 "work",
-                                e.target.value
+                                val
                               )
                             }
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
@@ -964,17 +1468,17 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
                         <div>
                           <label className="text-[10px] uppercase font-bold text-slate-400">Trade</label>
-                          <input
+                          <DebouncedInput
                             type="text"
                             value={item.trade}
-                            onChange={(e) =>
+                            onCommit={(val) =>
                               onUpdateItem(
                                 currentSite,
                                 unitName,
                                 floorName,
                                 realIndex,
                                 "trade",
-                                e.target.value
+                                val
                               )
                             }
                             className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
@@ -1003,18 +1507,18 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                                 <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                            <input
+                            <DebouncedInput
                               type="text"
                               value={item.notes || ""}
                               autoFocus
-                              onChange={(e) =>
+                              onCommit={(val) =>
                                 onUpdateItem(
                                   currentSite,
                                   unitName,
                                   floorName,
                                   realIndex,
                                   "notes",
-                                  e.target.value
+                                  val
                                 )
                               }
                               placeholder="Type comment or note..."
@@ -1054,14 +1558,29 @@ export const WorkTable: React.FC<WorkTableProps> = ({
                           <span>Photos ({item.photos?.length || 0})</span>
                         </button>
 
-                        <button
-                          onClick={() =>
-                            onRemoveItem(currentSite, unitName, floorName, realIndex)
-                          }
-                          className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {onDuplicateItem && (
+                            <button
+                              onClick={() =>
+                                onDuplicateItem(currentSite, unitName, floorName, realIndex)
+                              }
+                              className="p-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                              title="Duplicate row"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() =>
+                              onRemoveItem(currentSite, unitName, floorName, realIndex)
+                            }
+                            className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                            title="Remove row"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1071,6 +1590,166 @@ export const WorkTable: React.FC<WorkTableProps> = ({
           </div>
         );
       })}
+
+      {/* Quick Action Toast */}
+      {batchActionNotice && (
+        <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
+          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <span>{batchActionNotice}</span>
+        </div>
+      )}
+
+      {/* Floating Sticky Batch Actions Toolbar Dock (Shown when 1 or more items are selected) */}
+      {selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-4xl w-[94%] sm:w-auto bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/90 shadow-2xl rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between sm:justify-center gap-2.5 sm:gap-3.5 animate-in fade-in slide-in-from-bottom-5 duration-200">
+          <div className="flex items-center gap-2 border-r border-slate-700 pr-3">
+            <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center">
+              {selectedCount}
+            </span>
+            <span className="text-xs font-bold text-slate-200 whitespace-nowrap">
+              {selectedCount} Selected
+            </span>
+          </div>
+
+          {/* Status Batch Update Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 hidden lg:inline">Status:</span>
+            <button
+              type="button"
+              onClick={() => handleBatchStatusUpdate("Completed")}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              title="Mark all selected items as Completed"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span>Completed</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleBatchStatusUpdate("In Progress")}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              title="Mark all selected items as In Progress"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>In Progress</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleBatchStatusUpdate("Pending")}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              title="Mark all selected items as Pending"
+            >
+              <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+              <span>Pending</span>
+            </button>
+          </div>
+
+          {/* Priority Batch Selector */}
+          <div className="flex items-center gap-1.5 border-l border-slate-700 pl-3">
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleBatchPriorityUpdate(e.target.value as WorkPriority);
+                  e.target.value = "";
+                }
+              }}
+              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 font-semibold cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              title="Batch update priority for selected items"
+            >
+              <option value="" disabled>Set Priority...</option>
+              <option value="Critical">🔥 Critical</option>
+              <option value="High">⚠️ High</option>
+              <option value="Medium">⚡ Medium</option>
+              <option value="Low">🔽 Low</option>
+            </select>
+          </div>
+
+          {/* Batch Delete Action Button */}
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
+            <button
+              type="button"
+              onClick={() => setIsConfirmDeleteOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              title="Delete all selected items"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete ({selectedCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition-colors"
+              title="Deselect all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Modal */}
+      {isConfirmDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150 text-slate-800">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-rose-100 rounded-xl text-rose-600 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Confirm Batch Deletion
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Are you sure you want to permanently delete <strong className="text-rose-600">{selectedCount}</strong> selected work item{selectedCount > 1 ? "s" : ""}?
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-48 overflow-y-auto bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5 divide-y divide-slate-200/60">
+              {(Object.values(selectedItems) as SelectedItemTarget[]).slice(0, 8).map((item, idx) => (
+                <div key={idx} className="pt-1.5 first:pt-0 flex items-center justify-between text-slate-700">
+                  <span className="font-semibold text-slate-900 truncate max-w-[200px]">
+                    {item.itemArea || item.itemWork || `Row #${item.realIndex + 1}`}
+                  </span>
+                  <span className="text-[11px] text-slate-400 shrink-0">
+                    {item.siteName} · {item.unitName}
+                  </span>
+                </div>
+              ))}
+              {selectedCount > 8 && (
+                <p className="text-[11px] text-slate-400 font-medium pt-1 text-center">
+                  ...and {selectedCount - 8} more item{selectedCount - 8 > 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-500">
+              This action cannot be undone. Associated artisan notes, comments, and attached photos for these selected items will be permanently removed.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsConfirmDeleteOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBatchDeleteConfirmed}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete {selectedCount} Item{selectedCount > 1 ? "s" : ""}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

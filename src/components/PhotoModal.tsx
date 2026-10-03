@@ -94,6 +94,9 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setIsCameraActive(false);
   };
 
@@ -104,14 +107,14 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
   // Compress & resize image to lightweight data URL for high-performance sync & storage
   const compressImage = (imageElement: HTMLImageElement | HTMLVideoElement): string => {
     const canvas = document.createElement("canvas");
-    const maxDim = 800;
+    const maxDim = 640;
 
     let width = imageElement instanceof HTMLVideoElement ? imageElement.videoWidth : imageElement.naturalWidth;
     let height = imageElement instanceof HTMLVideoElement ? imageElement.videoHeight : imageElement.naturalHeight;
 
     if (!width || !height) {
-      width = 800;
-      height = 600;
+      width = 640;
+      height = 480;
     }
 
     if (width > height) {
@@ -131,10 +134,16 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
 
     const ctx = canvas.getContext("2d");
     if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "medium";
       ctx.drawImage(imageElement, 0, 0, width, height);
     }
 
-    return canvas.toDataURL("image/jpeg", 0.65);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.60);
+    // Explicitly release canvas bitmap memory
+    canvas.width = 0;
+    canvas.height = 0;
+    return dataUrl;
   };
 
   const handleCapturePhoto = () => {

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ListChecks, Sparkles, AlertTriangle } from "lucide-react";
+import { ListChecks, Sparkles, AlertTriangle, TrendingUp } from "lucide-react";
 import { Header } from "./components/Header";
 import { SummaryCards } from "./components/SummaryCards";
 import { Toolbar } from "./components/Toolbar";
 import { WorkTable } from "./components/WorkTable";
 import { SitePlansView } from "./components/SitePlansView";
+import { ProgressionPaceView } from "./components/ProgressionPaceView";
 import { AddWorkModal } from "./components/AddWorkModal";
 import { TradeAnalyticsModal } from "./components/TradeAnalyticsModal";
 import { ManageUnitsModal } from "./components/ManageUnitsModal";
@@ -96,8 +97,8 @@ export default function App() {
   // Track timestamp of last local edit to protect user input from stale remote snapshots
   const lastLocalUpdateRef = useRef<number>(0);
 
-  // Main active tab ("works" or "plans")
-  const [mainViewTab, setMainViewTab] = useState<"works" | "plans">("works");
+  // Main active tab ("works", "plans", or "pace")
+  const [mainViewTab, setMainViewTab] = useState<"works" | "plans" | "pace">("works");
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -277,8 +278,8 @@ export default function App() {
       setSitesData(newSitesMap);
       setSummary(computeSummary(newSitesMap, siteToUse, filters));
 
-      // Cache synchronously in local storage immediately
-      saveToLocalCache(newSitesMap);
+      // Cache locally with debouncing so rapid edits do not thrash IndexedDB and LocalStorage
+      saveToLocalCache(newSitesMap, debounceMs === 0);
 
       if (pendingSyncTimerRef.current) {
         clearTimeout(pendingSyncTimerRef.current);
@@ -376,11 +377,8 @@ export default function App() {
         return;
       }
       if (cloudSites && Object.keys(cloudSites).length > 0) {
-        setSitesData((prev) => {
-          const merged = mergeSitesMaps(cloudSites, prev);
-          saveToLocalCache(merged);
-          return merged;
-        });
+        setSitesData((prev) => mergeSitesMaps(cloudSites, prev));
+        saveToLocalCache(cloudSites);
       }
     });
 
@@ -439,10 +437,10 @@ export default function App() {
   const handleAddSite = (siteName: string, initialData?: SiteTrackerData) => {
     const trimmed = siteName.trim();
     if (!trimmed) return;
-    const template = initialData || createEsplanade6Template();
+    const template = initialData ? { ...initialData } : createEsplanade6Template();
     const newMap: SitesMap = {
       ...sitesData,
-      [trimmed]: JSON.parse(JSON.stringify(template)),
+      [trimmed]: template,
     };
     setCurrentSite(trimmed);
     setFilters((prev) => ({ ...prev, site: trimmed, unit: "all", floor: "all" }));
@@ -490,21 +488,33 @@ export default function App() {
     index: number
   ) => {
     if (fromSite === toSite) return;
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (
-      newSitesMap[fromSite] &&
-      newSitesMap[fromSite][unit] &&
-      newSitesMap[fromSite][unit][floor] &&
-      newSitesMap[fromSite][unit][floor][index]
-    ) {
-      const [item] = newSitesMap[fromSite][unit][floor].splice(index, 1);
-      if (!newSitesMap[toSite]) newSitesMap[toSite] = {};
-      if (!newSitesMap[toSite][unit]) newSitesMap[toSite][unit] = {};
-      if (!newSitesMap[toSite][unit][floor]) newSitesMap[toSite][unit][floor] = [];
+    const fromSiteObj = sitesData[fromSite];
+    if (!fromSiteObj?.[unit]?.[floor]?.[index]) return;
+    const itemToMove = fromSiteObj[unit][floor][index];
+    const newFromFloor = fromSiteObj[unit][floor].filter((_, i) => i !== index);
 
-      newSitesMap[toSite][unit][floor].push(item);
-      persistAllSites(newSitesMap, toSite);
-    }
+    const toSiteObj = sitesData[toSite] || {};
+    const toUnitObj = toSiteObj[unit] || {};
+    const toFloorList = [...(toUnitObj[floor] || []), itemToMove];
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [fromSite]: {
+        ...fromSiteObj,
+        [unit]: {
+          ...fromSiteObj[unit],
+          [floor]: newFromFloor,
+        },
+      },
+      [toSite]: {
+        ...toSiteObj,
+        [unit]: {
+          ...toUnitObj,
+          [floor]: toFloorList,
+        },
+      },
+    };
+    persistAllSites(newSitesMap, toSite);
   };
 
   // Move item between units
@@ -516,19 +526,28 @@ export default function App() {
     index: number
   ) => {
     if (fromUnit === toUnit) return;
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (
-      newSitesMap[siteName] &&
-      newSitesMap[siteName][fromUnit] &&
-      newSitesMap[siteName][fromUnit][floor] &&
-      newSitesMap[siteName][fromUnit][floor][index]
-    ) {
-      const [item] = newSitesMap[siteName][fromUnit][floor].splice(index, 1);
-      if (!newSitesMap[siteName][toUnit]) newSitesMap[siteName][toUnit] = {};
-      if (!newSitesMap[siteName][toUnit][floor]) newSitesMap[siteName][toUnit][floor] = [];
-      newSitesMap[siteName][toUnit][floor].push(item);
-      persistAllSites(newSitesMap, siteName);
-    }
+    const siteObj = sitesData[siteName];
+    if (!siteObj?.[fromUnit]?.[floor]?.[index]) return;
+    const itemToMove = siteObj[fromUnit][floor][index];
+    const newFromFloor = siteObj[fromUnit][floor].filter((_, i) => i !== index);
+    const toUnitObj = siteObj[toUnit] || {};
+    const toFloorList = [...(toUnitObj[floor] || []), itemToMove];
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [fromUnit]: {
+          ...siteObj[fromUnit],
+          [floor]: newFromFloor,
+        },
+        [toUnit]: {
+          ...toUnitObj,
+          [floor]: toFloorList,
+        },
+      },
+    };
+    persistAllSites(newSitesMap, siteName);
   };
 
   // Move item between floors
@@ -540,18 +559,24 @@ export default function App() {
     index: number
   ) => {
     if (fromFloor === toFloor) return;
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (
-      newSitesMap[siteName] &&
-      newSitesMap[siteName][unit] &&
-      newSitesMap[siteName][unit][fromFloor] &&
-      newSitesMap[siteName][unit][fromFloor][index]
-    ) {
-      const [item] = newSitesMap[siteName][unit][fromFloor].splice(index, 1);
-      if (!newSitesMap[siteName][unit][toFloor]) newSitesMap[siteName][unit][toFloor] = [];
-      newSitesMap[siteName][unit][toFloor].push(item);
-      persistAllSites(newSitesMap, siteName);
-    }
+    const siteObj = sitesData[siteName];
+    if (!siteObj?.[unit]?.[fromFloor]?.[index]) return;
+    const itemToMove = siteObj[unit][fromFloor][index];
+    const newFromFloor = siteObj[unit][fromFloor].filter((_, i) => i !== index);
+    const toFloorList = [...(siteObj[unit][toFloor] || []), itemToMove];
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [unit]: {
+          ...siteObj[unit],
+          [fromFloor]: newFromFloor,
+          [toFloor]: toFloorList,
+        },
+      },
+    };
+    persistAllSites(newSitesMap, siteName);
   };
 
   // Filter change handler
@@ -581,11 +606,6 @@ export default function App() {
     priority: WorkPriority,
     notes: string
   ) => {
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (!newSitesMap[siteName]) newSitesMap[siteName] = {};
-    if (!newSitesMap[siteName][unit]) newSitesMap[siteName][unit] = {};
-    if (!newSitesMap[siteName][unit][floor]) newSitesMap[siteName][unit][floor] = [];
-
     const newItem: WorkItem = {
       id: `item-${Date.now()}`,
       area,
@@ -597,7 +617,20 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    newSitesMap[siteName][unit][floor].push(newItem);
+    const siteObj = sitesData[siteName] || {};
+    const unitObj = siteObj[unit] || {};
+    const floorList = [...(unitObj[floor] || []), newItem];
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [unit]: {
+          ...unitObj,
+          [floor]: floorList,
+        },
+      },
+    };
     persistAllSites(newSitesMap, siteName);
   };
 
@@ -607,13 +640,7 @@ export default function App() {
     const targetFloor = filters.floor !== "all" ? filters.floor : floor;
     const targetTrade = filters.trade !== "all" ? filters.trade : "General";
 
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (!newSitesMap[siteName]) newSitesMap[siteName] = {};
-    if (!newSitesMap[siteName][targetUnit]) newSitesMap[siteName][targetUnit] = {};
-    if (!newSitesMap[siteName][targetUnit][targetFloor]) newSitesMap[siteName][targetUnit][targetFloor] = [];
-
-    // Place at the top (unshift) so newly added row is immediately visible without scrolling
-    newSitesMap[siteName][targetUnit][targetFloor].unshift({
+    const newItem: WorkItem = {
       id: `quick-${Date.now()}`,
       area: "",
       work: "",
@@ -621,8 +648,22 @@ export default function App() {
       status: "Pending",
       priority: "Medium",
       updatedAt: new Date().toISOString(),
-    });
+    };
 
+    const siteObj = sitesData[siteName] || {};
+    const unitObj = siteObj[targetUnit] || {};
+    const floorList = [newItem, ...(unitObj[targetFloor] || [])];
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [targetUnit]: {
+          ...unitObj,
+          [targetFloor]: floorList,
+        },
+      },
+    };
     persistAllSites(newSitesMap, siteName);
   };
 
@@ -635,17 +676,31 @@ export default function App() {
     field: keyof WorkItem,
     value: string
   ) => {
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (
-      newSitesMap[siteName] &&
-      newSitesMap[siteName][unit] &&
-      newSitesMap[siteName][unit][floor] &&
-      newSitesMap[siteName][unit][floor][index]
-    ) {
-      (newSitesMap[siteName][unit][floor][index] as any)[field] = value;
-      newSitesMap[siteName][unit][floor][index].updatedAt = new Date().toISOString();
-      persistAllSites(newSitesMap, siteName, 500);
-    }
+    const siteObj = sitesData[siteName];
+    if (!siteObj) return;
+    const unitObj = siteObj[unit];
+    if (!unitObj) return;
+    const floorList = unitObj[floor];
+    if (!floorList || !floorList[index]) return;
+
+    const updatedFloor = [...floorList];
+    updatedFloor[index] = {
+      ...updatedFloor[index],
+      [field]: value,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [unit]: {
+          ...unitObj,
+          [floor]: updatedFloor,
+        },
+      },
+    };
+    persistAllSites(newSitesMap, siteName, 400);
   };
 
   // Remove item
@@ -656,15 +711,21 @@ export default function App() {
     index: number
   ) => {
     if (confirm("Are you sure you want to remove this work item?")) {
-      const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-      if (
-        newSitesMap[siteName] &&
-        newSitesMap[siteName][unit] &&
-        newSitesMap[siteName][unit][floor]
-      ) {
-        newSitesMap[siteName][unit][floor].splice(index, 1);
-        persistAllSites(newSitesMap, siteName);
-      }
+      const siteObj = sitesData[siteName];
+      if (!siteObj?.[unit]?.[floor]?.[index]) return;
+
+      const updatedFloor = siteObj[unit][floor].filter((_, i) => i !== index);
+      const newSitesMap: SitesMap = {
+        ...sitesData,
+        [siteName]: {
+          ...siteObj,
+          [unit]: {
+            ...siteObj[unit],
+            [floor]: updatedFloor,
+          },
+        },
+      };
+      persistAllSites(newSitesMap, siteName);
     }
   };
 
@@ -675,41 +736,238 @@ export default function App() {
     floor: string,
     index: number
   ) => {
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (
-      newSitesMap[siteName] &&
-      newSitesMap[siteName][unit] &&
-      newSitesMap[siteName][unit][floor] &&
-      newSitesMap[siteName][unit][floor][index]
-    ) {
-      const existing = newSitesMap[siteName][unit][floor][index];
-      const dup: WorkItem = {
-        ...existing,
-        id: `dup-${Date.now()}`,
-        area: `${existing.area} (Copy)`,
-        updatedAt: new Date().toISOString(),
-      };
-      newSitesMap[siteName][unit][floor].splice(index + 1, 0, dup);
-      persistAllSites(newSitesMap, siteName);
-    }
+    const siteObj = sitesData[siteName];
+    if (!siteObj?.[unit]?.[floor]?.[index]) return;
+
+    const existing = siteObj[unit][floor][index];
+    const dup: WorkItem = {
+      ...existing,
+      id: `dup-${Date.now()}`,
+      area: `${existing.area} (Copy)`,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updatedFloor = [...siteObj[unit][floor]];
+    updatedFloor.splice(index + 1, 0, dup);
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [unit]: {
+          ...siteObj[unit],
+          [floor]: updatedFloor,
+        },
+      },
+    };
+    persistAllSites(newSitesMap, siteName);
   };
 
   // Batch complete floor
   const handleBatchCompleteFloor = (siteName: string, unit: string, floor: string) => {
     if (confirm(`Mark all items on ${siteName} - ${unit} - ${floor} as Completed?`)) {
-      const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-      if (
-        newSitesMap[siteName] &&
-        newSitesMap[siteName][unit] &&
-        newSitesMap[siteName][unit][floor]
-      ) {
-        newSitesMap[siteName][unit][floor].forEach((item) => {
-          item.status = "Completed";
-          item.updatedAt = new Date().toISOString();
-        });
-        persistAllSites(newSitesMap, siteName);
-      }
+      const siteObj = sitesData[siteName];
+      if (!siteObj?.[unit]?.[floor]) return;
+
+      const updatedFloor = siteObj[unit][floor].map((item) => ({
+        ...item,
+        status: "Completed" as WorkStatus,
+        updatedAt: new Date().toISOString(),
+      }));
+
+      const newSitesMap: SitesMap = {
+        ...sitesData,
+        [siteName]: {
+          ...siteObj,
+          [unit]: {
+            ...siteObj[unit],
+            [floor]: updatedFloor,
+          },
+        },
+      };
+      persistAllSites(newSitesMap, siteName);
     }
+  };
+
+  // Batch update status for multiple selected items
+  const handleBatchUpdateStatus = (
+    targets: Array<{ siteName: string; unitName: string; floorName: string; realIndex: number; id?: string }>,
+    newStatus: WorkStatus
+  ) => {
+    if (!targets.length) return;
+
+    const grouped: Record<string, Record<string, Record<string, Array<{ realIndex: number; id?: string }>>>> = {};
+    targets.forEach((t) => {
+      if (!grouped[t.siteName]) grouped[t.siteName] = {};
+      if (!grouped[t.siteName][t.unitName]) grouped[t.siteName][t.unitName] = {};
+      if (!grouped[t.siteName][t.unitName][t.floorName]) grouped[t.siteName][t.unitName][t.floorName] = [];
+      grouped[t.siteName][t.unitName][t.floorName].push({ realIndex: t.realIndex, id: t.id });
+    });
+
+    const nowIso = new Date().toISOString();
+    const newSitesMap: SitesMap = { ...sitesData };
+
+    Object.entries(grouped).forEach(([sName, sUnits]) => {
+      const siteObj = newSitesMap[sName];
+      if (!siteObj) return;
+      const nextSiteObj = { ...siteObj };
+
+      Object.entries(sUnits).forEach(([uName, uFloors]) => {
+        const unitObj = nextSiteObj[uName];
+        if (!unitObj) return;
+        const nextUnitObj = { ...unitObj };
+
+        Object.entries(uFloors).forEach(([fName, items]) => {
+          const floorList = nextUnitObj[fName];
+          if (!floorList) return;
+
+          const idMap = new Map(items.filter((i) => i.id).map((i) => [i.id, true]));
+          const indexMap = new Set(items.map((i) => i.realIndex));
+
+          const nextFloor = floorList.map((item, idx) => {
+            const isMatch = (item.id && idMap.has(item.id)) || indexMap.has(idx);
+            if (isMatch) {
+              return {
+                ...item,
+                status: newStatus,
+                updatedAt: nowIso,
+              };
+            }
+            return item;
+          });
+
+          nextUnitObj[fName] = nextFloor;
+        });
+
+        nextSiteObj[uName] = nextUnitObj;
+      });
+
+      newSitesMap[sName] = nextSiteObj;
+    });
+
+    persistAllSites(newSitesMap);
+    setToast({
+      message: `Updated status to "${newStatus}" for ${targets.length} item(s)`,
+      type: "success",
+    });
+  };
+
+  // Batch update priority for multiple selected items
+  const handleBatchUpdatePriority = (
+    targets: Array<{ siteName: string; unitName: string; floorName: string; realIndex: number; id?: string }>,
+    newPriority: WorkPriority
+  ) => {
+    if (!targets.length) return;
+
+    const grouped: Record<string, Record<string, Record<string, Array<{ realIndex: number; id?: string }>>>> = {};
+    targets.forEach((t) => {
+      if (!grouped[t.siteName]) grouped[t.siteName] = {};
+      if (!grouped[t.siteName][t.unitName]) grouped[t.siteName][t.unitName] = {};
+      if (!grouped[t.siteName][t.unitName][t.floorName]) grouped[t.siteName][t.unitName][t.floorName] = [];
+      grouped[t.siteName][t.unitName][t.floorName].push({ realIndex: t.realIndex, id: t.id });
+    });
+
+    const nowIso = new Date().toISOString();
+    const newSitesMap: SitesMap = { ...sitesData };
+
+    Object.entries(grouped).forEach(([sName, sUnits]) => {
+      const siteObj = newSitesMap[sName];
+      if (!siteObj) return;
+      const nextSiteObj = { ...siteObj };
+
+      Object.entries(sUnits).forEach(([uName, uFloors]) => {
+        const unitObj = nextSiteObj[uName];
+        if (!unitObj) return;
+        const nextUnitObj = { ...unitObj };
+
+        Object.entries(uFloors).forEach(([fName, items]) => {
+          const floorList = nextUnitObj[fName];
+          if (!floorList) return;
+
+          const idMap = new Map(items.filter((i) => i.id).map((i) => [i.id, true]));
+          const indexMap = new Set(items.map((i) => i.realIndex));
+
+          const nextFloor = floorList.map((item, idx) => {
+            const isMatch = (item.id && idMap.has(item.id)) || indexMap.has(idx);
+            if (isMatch) {
+              return {
+                ...item,
+                priority: newPriority,
+                updatedAt: nowIso,
+              };
+            }
+            return item;
+          });
+
+          nextUnitObj[fName] = nextFloor;
+        });
+
+        nextSiteObj[uName] = nextUnitObj;
+      });
+
+      newSitesMap[sName] = nextSiteObj;
+    });
+
+    persistAllSites(newSitesMap);
+    setToast({
+      message: `Updated priority to "${newPriority}" for ${targets.length} item(s)`,
+      type: "success",
+    });
+  };
+
+  // Batch delete multiple selected items
+  const handleBatchDeleteItems = (
+    targets: Array<{ siteName: string; unitName: string; floorName: string; realIndex: number; id?: string }>
+  ) => {
+    if (!targets.length) return;
+
+    const grouped: Record<string, Record<string, Record<string, Array<{ realIndex: number; id?: string }>>>> = {};
+    targets.forEach((t) => {
+      if (!grouped[t.siteName]) grouped[t.siteName] = {};
+      if (!grouped[t.siteName][t.unitName]) grouped[t.siteName][t.unitName] = {};
+      if (!grouped[t.siteName][t.unitName][t.floorName]) grouped[t.siteName][t.unitName][t.floorName] = [];
+      grouped[t.siteName][t.unitName][t.floorName].push({ realIndex: t.realIndex, id: t.id });
+    });
+
+    const newSitesMap: SitesMap = { ...sitesData };
+
+    Object.entries(grouped).forEach(([sName, sUnits]) => {
+      const siteObj = newSitesMap[sName];
+      if (!siteObj) return;
+      const nextSiteObj = { ...siteObj };
+
+      Object.entries(sUnits).forEach(([uName, uFloors]) => {
+        const unitObj = nextSiteObj[uName];
+        if (!unitObj) return;
+        const nextUnitObj = { ...unitObj };
+
+        Object.entries(uFloors).forEach(([fName, items]) => {
+          const floorList = nextUnitObj[fName];
+          if (!floorList) return;
+
+          const itemIdsToRemove = new Set(items.map((i) => i.id).filter(Boolean));
+          const indexesToRemove = new Set(items.map((i) => i.realIndex));
+
+          const nextFloor = floorList.filter((item, idx) => {
+            if (item.id && itemIdsToRemove.has(item.id)) return false;
+            if (!item.id && indexesToRemove.has(idx)) return false;
+            return true;
+          });
+
+          nextUnitObj[fName] = nextFloor;
+        });
+
+        nextSiteObj[uName] = nextUnitObj;
+      });
+
+      newSitesMap[sName] = nextSiteObj;
+    });
+
+    persistAllSites(newSitesMap);
+    setToast({
+      message: `Successfully deleted ${targets.length} item(s)`,
+      type: "success",
+    });
   };
 
   // Open Photos modal for an item
@@ -731,41 +989,59 @@ export default function App() {
     index: number,
     photos: string[]
   ) => {
-    const newSitesMap = JSON.parse(JSON.stringify(sitesData)) as SitesMap;
-    if (
-      newSitesMap[siteName] &&
-      newSitesMap[siteName][unit] &&
-      newSitesMap[siteName][unit][floor] &&
-      newSitesMap[siteName][unit][floor][index]
-    ) {
-      newSitesMap[siteName][unit][floor][index].photos = photos;
-      newSitesMap[siteName][unit][floor][index].updatedAt = new Date().toISOString();
-      persistAllSites(newSitesMap, siteName);
+    const siteObj = sitesData[siteName];
+    if (!siteObj?.[unit]?.[floor]?.[index]) return;
 
-      setActivePhotoItem((prev) =>
-        prev ? { ...prev, item: { ...prev.item, photos } } : null
-      );
-    }
+    const updatedFloor = [...siteObj[unit][floor]];
+    updatedFloor[index] = {
+      ...updatedFloor[index],
+      photos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const newSitesMap: SitesMap = {
+      ...sitesData,
+      [siteName]: {
+        ...siteObj,
+        [unit]: {
+          ...siteObj[unit],
+          [floor]: updatedFloor,
+        },
+      },
+    };
+    persistAllSites(newSitesMap, siteName);
+
+    setActivePhotoItem((prev) =>
+      prev ? { ...prev, item: { ...prev.item, photos } } : null
+    );
   };
 
   // Add new building unit in active site
   const handleAddUnit = (unitName: string, floors: string[]) => {
-    const newData = JSON.parse(JSON.stringify(activeData)) as SiteTrackerData;
-    if (!newData[unitName]) {
-      newData[unitName] = {};
-      floors.forEach((f) => {
-        newData[unitName][f] = [];
-      });
-      persistActiveSiteData(newData);
-    }
+    const trimmed = unitName.trim();
+    if (!trimmed) return;
+    const siteObj = activeData || {};
+    if (siteObj[trimmed]) return;
+
+    const newUnit: Record<string, WorkItem[]> = {};
+    floors.forEach((f) => {
+      newUnit[f] = [];
+    });
+
+    const newData: SiteTrackerData = {
+      ...siteObj,
+      [trimmed]: newUnit,
+    };
+    persistActiveSiteData(newData);
   };
 
   // Rename building unit in active site
   const handleRenameUnit = (oldName: string, newName: string) => {
-    if (!newName.trim() || oldName === newName) return;
-    const newData = JSON.parse(JSON.stringify(activeData)) as SiteTrackerData;
-    if (newData[oldName]) {
-      newData[newName] = newData[oldName];
+    const trimmed = newName.trim();
+    if (!trimmed || oldName === trimmed) return;
+    if (activeData[oldName]) {
+      const newData: SiteTrackerData = { ...activeData };
+      newData[trimmed] = newData[oldName];
       delete newData[oldName];
       if (filters.unit === oldName) {
         setFilters((prev) => ({ ...prev, unit: newName }));
@@ -776,8 +1052,8 @@ export default function App() {
 
   // Delete building unit in active site
   const handleDeleteUnit = (unitName: string) => {
-    const newData = JSON.parse(JSON.stringify(activeData)) as SiteTrackerData;
-    if (newData[unitName]) {
+    if (activeData[unitName]) {
+      const newData: SiteTrackerData = { ...activeData };
       delete newData[unitName];
       if (filters.unit === unitName) {
         setFilters((prev) => ({ ...prev, unit: "all" }));
@@ -961,6 +1237,21 @@ export default function App() {
                 </span>
               )}
             </button>
+
+            <button
+              onClick={() => setMainViewTab("pace")}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                mainViewTab === "pace"
+                  ? "bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 text-emerald-300" />
+              <span>3. Progression Pace</span>
+              <span className="px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[11px] font-black">
+                {summary.overallPct}%
+              </span>
+            </button>
           </div>
 
           <div className="text-xs text-slate-500 font-medium hidden md:flex items-center gap-2">
@@ -971,54 +1262,69 @@ export default function App() {
           </div>
         </div>
 
-        {/* KPI Cards & Overall Progress */}
-        <SummaryCards summary={summary} filters={filters} />
-
-        {/* Filters Toolbar & Actions */}
-        <Toolbar
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          sitesList={allSitesList}
-          units={unitsList}
-          floors={floorsList}
-          trades={tradesList}
-          onAddWork={() => setIsAddModalOpen(true)}
-          onOpenManageSites={() => setIsManageSitesModalOpen(true)}
-          onOpenManageUnits={() => setIsManageUnitsModalOpen(true)}
-          onOpenTradeAnalytics={() => setIsTradeModalOpen(true)}
-          onOpenReports={() => setIsReportsModalOpen(true)}
-          onOpenExecutiveSummary={() => setIsExecutiveSummaryOpen(true)}
-          onOpenStorageOptions={() => setIsStorageModalOpen(true)}
-          onOpenPdfExport={() => setIsPdfModalOpen(true)}
-          onExportCsv={handleExportCsv}
-          onPrint={handlePrint}
-          onReset={handleReset}
-        />
-
         {/* View Content */}
         {mainViewTab === "works" ? (
-          <WorkTable
-            sitesData={sitesData}
-            allSitesList={allSitesList}
-            activeSiteName={currentSite}
-            filters={filters}
-            onUpdateItem={handleUpdateItem}
-            onMoveItemSite={handleMoveItemSite}
-            onMoveItemUnit={handleMoveItemUnit}
-            onMoveItemFloor={handleMoveItemFloor}
-            onRemoveItem={handleRemoveItem}
-            onDuplicateItem={handleDuplicateItem}
-            onAddQuickItem={handleAddQuickItem}
-            onBatchCompleteFloor={handleBatchCompleteFloor}
-            onOpenPhotos={handleOpenPhotos}
-          />
+          <>
+            {/* KPI Cards & Overall Progress */}
+            <SummaryCards summary={summary} filters={filters} />
+
+            {/* Filters Toolbar & Actions */}
+            <Toolbar
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              sitesList={allSitesList}
+              units={unitsList}
+              floors={floorsList}
+              trades={tradesList}
+              onAddWork={() => setIsAddModalOpen(true)}
+              onOpenManageSites={() => setIsManageSitesModalOpen(true)}
+              onOpenManageUnits={() => setIsManageUnitsModalOpen(true)}
+              onOpenTradeAnalytics={() => setIsTradeModalOpen(true)}
+              onOpenReports={() => setIsReportsModalOpen(true)}
+              onOpenExecutiveSummary={() => setIsExecutiveSummaryOpen(true)}
+              onOpenStorageOptions={() => setIsStorageModalOpen(true)}
+              onOpenPdfExport={() => setIsPdfModalOpen(true)}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrint}
+              onReset={handleReset}
+            />
+
+            <WorkTable
+              sitesData={sitesData}
+              allSitesList={allSitesList}
+              activeSiteName={currentSite}
+              filters={filters}
+              onUpdateItem={handleUpdateItem}
+              onMoveItemSite={handleMoveItemSite}
+              onMoveItemUnit={handleMoveItemUnit}
+              onMoveItemFloor={handleMoveItemFloor}
+              onRemoveItem={handleRemoveItem}
+              onDuplicateItem={handleDuplicateItem}
+              onAddQuickItem={handleAddQuickItem}
+              onBatchCompleteFloor={handleBatchCompleteFloor}
+              onOpenPhotos={handleOpenPhotos}
+              onBatchUpdateStatus={handleBatchUpdateStatus}
+              onBatchUpdatePriority={handleBatchUpdatePriority}
+              onBatchDelete={handleBatchDeleteItems}
+            />
+          </>
+        ) : mainViewTab === "plans" ? (
+          <>
+            <SummaryCards summary={summary} filters={filters} />
+            <SitePlansView
+              sitesData={sitesData}
+              currentSite={currentSite}
+              allSitesList={allSitesList}
+              onSelectSite={handleSelectSite}
+              onPersist={persistAllSites}
+            />
+          </>
         ) : (
-          <SitePlansView
+          <ProgressionPaceView
             sitesData={sitesData}
-            currentSite={currentSite}
             allSitesList={allSitesList}
+            currentSite={currentSite}
             onSelectSite={handleSelectSite}
-            onPersist={persistAllSites}
           />
         )}
       </main>
@@ -1085,6 +1391,7 @@ export default function App() {
         onClose={() => setIsExecutiveSummaryOpen(false)}
         sites={sitesData}
         currentSite={currentSite}
+        onShowToast={showToast}
       />
 
       <StorageOptionsModal

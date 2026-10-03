@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import http from "http";
+import fs from "fs";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
@@ -8,7 +9,7 @@ import { createServer as createViteServer } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const PYTHON_PORT = 5000;
 
 // Start Python Backend Process
@@ -81,15 +82,23 @@ async function startServer() {
     }
   });
 
+  const distPath = path.join(process.cwd(), "dist");
+  const hasDist = fs.existsSync(path.join(distPath, "index.html"));
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    (hasDist && process.env.npm_lifecycle_event === "start");
+
   // Vite middleware for dev or Static files for prod
-  if (process.env.NODE_ENV !== "production") {
+  if (!isProduction) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));

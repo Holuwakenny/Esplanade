@@ -39,8 +39,57 @@ export function subscribeSyncStatus(listener: SyncStatusListener) {
   };
 }
 
-// Save data to localStorage and IndexedDB with resilient fallback
-export function saveToLocalCache(sitesData: SitesMap): void {
+// Create lightweight metadata copy without deep JSON cloning
+function createLightweightStorageCopy(sitesData: SitesMap): SitesMap {
+  const result: SitesMap = {};
+  for (const [siteKey, siteVal] of Object.entries(sitesData)) {
+    if (!siteVal || typeof siteVal !== "object") continue;
+    const siteObj: any = {};
+    for (const [unitKey, unitVal] of Object.entries(siteVal)) {
+      if (unitKey === "_plans") {
+        siteObj[unitKey] = unitVal;
+        continue;
+      }
+      if (!unitVal || typeof unitVal !== "object") continue;
+      const unitObj: any = {};
+      for (const [floorKey, items] of Object.entries(unitVal as any)) {
+        if (!Array.isArray(items)) continue;
+        unitObj[floorKey] = items.map((item: any) => {
+          if (item && Array.isArray(item.photos) && item.photos.length > 0) {
+            // Keep at most 1 preview photo for lightweight storage/cloud fallback
+            return { ...item, photos: item.photos.slice(0, 1) };
+          }
+          return item;
+        });
+      }
+      siteObj[unitKey] = unitObj;
+    }
+    result[siteKey] = siteObj;
+  }
+  return result;
+}
+
+// Ensure payload fits within Firestore's 1MB document limit
+export function prepareFirestorePayload(sitesData: SitesMap): string {
+  try {
+    const raw = JSON.stringify(sitesData);
+    if (raw.length < 800000) {
+      return raw;
+    }
+    console.info("[Firestore] Document exceeds 800KB. Optimizing payload for cloud sync...");
+    const lightweight = createLightweightStorageCopy(sitesData);
+    return JSON.stringify(lightweight);
+  } catch (err) {
+    console.warn("[Firestore] Error preparing payload, using lightweight fallback:", err);
+    return JSON.stringify(createLightweightStorageCopy(sitesData));
+  }
+}
+
+// Debounced timer for IndexedDB and LocalStorage to prevent memory thrashing
+let localSaveTimer: NodeJS.Timeout | null = null;
+let pendingSitesData: SitesMap | null = null;
+
+function executeLocalSave(sitesData: SitesMap) {
   // 1. Always save complete unstripped state (including all photos) into IndexedDB
   saveSitesToIndexedDB(sitesData).catch((err) =>
     console.warn("[IndexedDB] Save warning:", err)
@@ -52,32 +101,35 @@ export function saveToLocalCache(sitesData: SitesMap): void {
     const serialized = JSON.stringify(sitesData);
     localStorage.setItem(CACHE_KEY, serialized);
   } catch (e) {
-    console.warn("[LocalCache] LocalStorage quota exceeded, caching optimized lightweight metadata for storage fallback...", e);
+    console.warn("[LocalCache] LocalStorage quota exceeded, storing lightweight copy...", e);
     try {
-      const cleansedData = JSON.parse(JSON.stringify(sitesData));
-      for (const site of Object.values(cleansedData)) {
-        if (typeof site === "object" && site) {
-          for (const unit of Object.values(site as any)) {
-            if (typeof unit === "object" && unit) {
-              for (const items of Object.values(unit as any)) {
-                if (Array.isArray(items)) {
-                  items.forEach((item: any) => {
-                    // Truncate heavy photo arrays only for localStorage fallback if needed, full photos remain safely in IndexedDB
-                    if (item && Array.isArray(item.photos) && item.photos.length > 2) {
-                      item.photos = item.photos.slice(0, 2);
-                    }
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
+      const cleansedData = createLightweightStorageCopy(sitesData);
       localStorage.setItem(CACHE_KEY, JSON.stringify(cleansedData));
     } catch (err) {
       console.error("[LocalCache] Critical error writing fallback localStorage:", err);
     }
   }
+}
+
+// Save data to localStorage and IndexedDB with resilient fallback and debouncing
+export function saveToLocalCache(sitesData: SitesMap, immediate: boolean = false): void {
+  pendingSitesData = sitesData;
+  if (immediate) {
+    if (localSaveTimer) {
+      clearTimeout(localSaveTimer);
+      localSaveTimer = null;
+    }
+    executeLocalSave(sitesData);
+    return;
+  }
+
+  if (localSaveTimer) return;
+  localSaveTimer = setTimeout(() => {
+    localSaveTimer = null;
+    if (pendingSitesData) {
+      executeLocalSave(pendingSitesData);
+    }
+  }, 350);
 }
 
 // Load cached data from IndexedDB or LocalStorage
@@ -222,7 +274,7 @@ export async function flushOfflineQueue(): Promise<boolean> {
     const docRef = doc(db, "trackers", DOCUMENT_ID);
     await setDoc(docRef, {
       updatedAt: new Date().toISOString(),
-      sites: JSON.stringify(parsedData),
+      sites: prepareFirestorePayload(parsedData),
     }, { merge: true });
 
     localStorage.removeItem(QUEUE_KEY);
@@ -259,7 +311,7 @@ export async function syncToFirestore(sitesData: SitesMap): Promise<boolean> {
     const docRef = doc(db, "trackers", DOCUMENT_ID);
     await setDoc(docRef, {
       updatedAt: new Date().toISOString(),
-      sites: JSON.stringify(sitesData),
+      sites: prepareFirestorePayload(sitesData),
     }, { merge: true });
 
     // Clear queue if present

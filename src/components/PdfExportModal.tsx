@@ -135,6 +135,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     return (a.item.area || "").localeCompare(b.item.area || "");
   });
 
+  const siteGroupedItems: Record<string, ExportItem[]> = {};
+  targetSiteKeys.forEach((sKey) => {
+    siteGroupedItems[sKey] = sortedExportItems.filter((i) => i.siteName === sKey);
+  });
+
   const handleDownloadPdf = async () => {
     if (!printContainerRef.current) return;
     setIsGenerating(true);
@@ -145,8 +150,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       // Temporarily reveal container for canvas capture
       container.style.display = "block";
       
+      const containerHeight = container.clientHeight || 1200;
+      const targetScale = containerHeight > 3000 ? 1.2 : 1.5;
+
       const canvas = await html2canvas(container, {
-        scale: 2.5,
+        scale: targetScale,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
@@ -171,7 +179,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
       container.style.display = "none";
 
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const imgData = canvas.toDataURL("image/jpeg", 0.85);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -193,6 +201,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
+
+      // Explicitly free canvas memory
+      canvas.width = 0;
+      canvas.height = 0;
 
       const fileName = `${reportTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
       pdf.save(fileName);
@@ -376,46 +388,113 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
             </div>
           </div>
 
-          {/* PDF Work Items Table */}
-          <div>
-            <h2 style={{ fontSize: "14px", fontWeight: "bold", color: "#000000", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Work Items & Progress Status ({exportItems.length})
-            </h2>
-            <table style={{ width: "100%", textAlign: "left", fontSize: "12px", lineHeight: "1.5", borderCollapse: "collapse", border: "1px solid #000000" }}>
-              <thead>
-                <tr style={{ backgroundColor: "#000000", color: "#ffffff", fontWeight: "bold", fontSize: "12px" }}>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000", width: "35px", textAlign: "center" }}>#</th>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Area / Location</th>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Outstanding Work</th>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Trade</th>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Unit / Floor</th>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Priority</th>
-                  <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Status</th>
-                  {includeNotes && <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Comments / Notes</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedExportItems.map((row, idx) => (
-                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", color: "#000000" }}>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", textAlign: "center", fontWeight: "bold", color: "#000000" }}>{idx + 1}</td>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.area}</td>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", color: "#000000", fontWeight: "500" }}>{row.item.work}</td>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", color: "#000000" }}>{row.item.trade}</td>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>
-                      {row.unitName} - {row.floorName}
-                    </td>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.priority || "Medium"}</td>
-                    <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.status}</td>
-                    {includeNotes && (
-                      <td style={{ padding: "8px 10px", border: "1px solid #000000", fontStyle: "italic", color: "#000000" }}>
-                        {row.item.notes || "-"}
-                      </td>
-                    )}
+          {/* PDF Work Items Table - Formatted by Sites when multiple sites are included */}
+          {targetSiteKeys.length > 1 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <h2 style={{ fontSize: "14px", fontWeight: "bold", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px", margin: 0 }}>
+                Work Items & Progress Status (Organized by Site - {exportItems.length} Total Items)
+              </h2>
+
+              {targetSiteKeys.map((sKey) => {
+                const sItems = siteGroupedItems[sKey] || [];
+                return (
+                  <div key={sKey} style={{ pageBreakInside: "avoid", border: "1px solid #000000", borderRadius: "4px", overflow: "hidden" }}>
+                    <div style={{ backgroundColor: "#000000", color: "#ffffff", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ fontWeight: "bold", fontSize: "12px", textTransform: "uppercase" }}>
+                        SITE: {sKey}
+                      </div>
+                      <div style={{ fontSize: "11px", fontWeight: "600" }}>
+                        {sItems.length} Work Items Listed
+                      </div>
+                    </div>
+
+                    <table style={{ width: "100%", textAlign: "left", fontSize: "11px", lineHeight: "1.4", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f5f9", color: "#000000", fontWeight: "bold" }}>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000", width: "30px", textAlign: "center" }}>#</th>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Unit / Floor</th>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Area / Location</th>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Outstanding Work</th>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Trade</th>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Priority</th>
+                          <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Status</th>
+                          {includeNotes && <th style={{ padding: "6px 8px", borderBottom: "1px solid #000000" }}>Comments / Notes</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={includeNotes ? 8 : 7} style={{ padding: "10px", textAlign: "center", color: "#000000", fontStyle: "italic" }}>
+                              No work items recorded for {sKey}.
+                            </td>
+                          </tr>
+                        ) : (
+                          sItems.map((row, idx) => (
+                            <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", color: "#000000" }}>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", textAlign: "center", color: "#64748b" }}>{idx + 1}</td>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", fontWeight: "bold" }}>
+                                {row.unitName} - {row.floorName}
+                              </td>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", fontWeight: "600" }}>{row.item.area}</td>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", fontWeight: "500" }}>{row.item.work}</td>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0" }}>{row.item.trade}</td>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", fontWeight: "bold" }}>{row.item.priority || "Medium"}</td>
+                              <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", fontWeight: "bold" }}>{row.item.status}</td>
+                              {includeNotes && (
+                                <td style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", fontStyle: "italic" }}>
+                                  {row.item.notes || "-"}
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div>
+              <h2 style={{ fontSize: "14px", fontWeight: "bold", color: "#000000", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Work Items & Progress Status ({exportItems.length})
+              </h2>
+              <table style={{ width: "100%", textAlign: "left", fontSize: "12px", lineHeight: "1.5", borderCollapse: "collapse", border: "1px solid #000000" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#000000", color: "#ffffff", fontWeight: "bold", fontSize: "12px" }}>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000", width: "35px", textAlign: "center" }}>#</th>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Area / Location</th>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Outstanding Work</th>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Trade</th>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Unit / Floor</th>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Priority</th>
+                    <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Status</th>
+                    {includeNotes && <th style={{ padding: "8px 10px", border: "1px solid #000000" }}>Comments / Notes</th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {sortedExportItems.map((row, idx) => (
+                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", color: "#000000" }}>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", textAlign: "center", fontWeight: "bold", color: "#000000" }}>{idx + 1}</td>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.area}</td>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", color: "#000000", fontWeight: "500" }}>{row.item.work}</td>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", color: "#000000" }}>{row.item.trade}</td>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>
+                        {row.unitName} - {row.floorName}
+                      </td>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.priority || "Medium"}</td>
+                      <td style={{ padding: "8px 10px", border: "1px solid #000000", fontWeight: "bold", color: "#000000" }}>{row.item.status}</td>
+                      {includeNotes && (
+                        <td style={{ padding: "8px 10px", border: "1px solid #000000", fontStyle: "italic", color: "#000000" }}>
+                          {row.item.notes || "-"}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Action Plans & Issues Section */}
           {includePlans && (
@@ -427,44 +506,97 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
             <div className="pt-4 border-t border-black">
               <h2 className="text-sm font-bold text-black mb-3 uppercase tracking-wider flex items-center gap-1.5">
                 <Image className="w-4 h-4 text-black" />
-                Attached Photo Records & Image Captions ({totalPhotosCount})
+                Attached Photo Records & Image Captions {targetSiteKeys.length > 1 ? "by Site" : ""} ({totalPhotosCount})
               </h2>
 
-              <div className="grid grid-cols-2 gap-4">
-                {exportItems.map((row) =>
-                  (row.item.photos || []).map((photoUrl, pIdx) => (
-                    <div
-                      key={`${row.item.id}-${pIdx}`}
-                      className="border border-black rounded-lg p-3 bg-white space-y-2 break-inside-avoid"
-                    >
-                      <div className="h-48 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
-                        <img
-                          src={photoUrl}
-                          alt={`Evidence Photo ${pIdx + 1}`}
-                          className="max-h-full max-w-full object-contain"
-                        />
+              {targetSiteKeys.length > 1 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {targetSiteKeys.map((sKey) => {
+                    const sItems = siteGroupedItems[sKey] || [];
+                    const sPhotos = sItems.filter((i) => i.item.photos && i.item.photos.length > 0);
+                    if (sPhotos.length === 0) return null;
+
+                    return (
+                      <div key={sKey} style={{ pageBreakInside: "avoid" }}>
+                        <div style={{ backgroundColor: "#000000", color: "#ffffff", padding: "6px 10px", fontWeight: "bold", fontSize: "11px", textTransform: "uppercase", marginBottom: "8px" }}>
+                          SITE: {sKey} — EVIDENCE PHOTOS
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {sPhotos.map((row) =>
+                            (row.item.photos || []).map((photoUrl, pIdx) => (
+                              <div
+                                key={`${row.item.id}-${pIdx}`}
+                                className="border border-black rounded-lg p-3 bg-white space-y-2 break-inside-avoid"
+                              >
+                                <div className="h-44 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
+                                  <img
+                                    src={photoUrl}
+                                    alt={`Evidence Photo ${pIdx + 1}`}
+                                    className="max-h-full max-w-full object-contain"
+                                  />
+                                </div>
+                                <div className="text-xs space-y-1 bg-white p-2 rounded border border-black leading-normal">
+                                  <div className="font-bold text-black flex justify-between">
+                                    <span>Photo #{pIdx + 1}: {row.siteName}</span>
+                                    <span className="text-black font-semibold">{row.unitName} • {row.floorName}</span>
+                                  </div>
+                                  <div className="text-black font-semibold">
+                                    Area: <span className="text-black font-bold">{row.item.area}</span> | Trade: <span className="text-black font-bold">{row.item.trade}</span>
+                                  </div>
+                                  <div className="text-black font-medium">
+                                    Work: {row.item.work}
+                                  </div>
+                                  {row.item.notes && (
+                                    <div className="text-black italic bg-slate-50 p-1.5 rounded border border-black text-xs">
+                                      Caption/Notes: "{row.item.notes}"
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xs space-y-1.5 bg-white p-2.5 rounded border border-black leading-normal">
-                        <div className="font-bold text-black flex justify-between">
-                          <span>Photo #{pIdx + 1}: {row.siteName}</span>
-                          <span className="text-black font-semibold">{row.unitName} • {row.floorName}</span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {exportItems.map((row) =>
+                    (row.item.photos || []).map((photoUrl, pIdx) => (
+                      <div
+                        key={`${row.item.id}-${pIdx}`}
+                        className="border border-black rounded-lg p-3 bg-white space-y-2 break-inside-avoid"
+                      >
+                        <div className="h-48 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
+                          <img
+                            src={photoUrl}
+                            alt={`Evidence Photo ${pIdx + 1}`}
+                            className="max-h-full max-w-full object-contain"
+                          />
                         </div>
-                        <div className="text-black font-semibold">
-                          Area: <span className="text-black font-bold">{row.item.area}</span> | Trade: <span className="text-black font-bold">{row.item.trade}</span>
-                        </div>
-                        <div className="text-black font-medium">
-                          Work: {row.item.work}
-                        </div>
-                        {row.item.notes && (
-                          <div className="text-black italic bg-slate-50 p-1.5 rounded border border-black text-xs">
-                            Caption/Notes: "{row.item.notes}"
+                        <div className="text-xs space-y-1.5 bg-white p-2.5 rounded border border-black leading-normal">
+                          <div className="font-bold text-black flex justify-between">
+                            <span>Photo #{pIdx + 1}: {row.siteName}</span>
+                            <span className="text-black font-semibold">{row.unitName} • {row.floorName}</span>
                           </div>
-                        )}
+                          <div className="text-black font-semibold">
+                            Area: <span className="text-black font-bold">{row.item.area}</span> | Trade: <span className="text-black font-bold">{row.item.trade}</span>
+                          </div>
+                          <div className="text-black font-medium">
+                            Work: {row.item.work}
+                          </div>
+                          {row.item.notes && (
+                            <div className="text-black italic bg-slate-50 p-1.5 rounded border border-black text-xs">
+                              Caption/Notes: "{row.item.notes}"
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           )}
 

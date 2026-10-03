@@ -3,7 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Esplande 6 work tracking system</title>
+    <title>Esplanade 6 Works Tracker</title>
+    <meta name="description" content="Site coordination and close-out outstanding works tracker for Esplanade 6 with Python backend and Cloud database." />
+    <meta property="og:title" content="Esplanade 6 Works Tracker" />
+    <meta property="og:description" content="Site coordination and close-out outstanding works tracker for Esplanade 6 with Python backend and Cloud database." />
+    <script>
+      // Suppress Vite HMR WebSocket errors in cloud iframe environment
+      (function() {
+        function isWsError(err) {
+          if (!err) return false;
+          var str = (typeof err === 'string' ? err : (err.message || '') + ' ' + (err.stack || '') + ' ' + String(err)).toLowerCase();
+          return str.indexOf('websocket') !== -1 || str.indexOf('ws://') !== -1 || str.indexOf('wss://') !== -1 || str.indexOf('vite') !== -1 && str.indexOf('connect') !== -1;
+        }
+        window.addEventListener('unhandledrejection', function (event) {
+          if (isWsError(event.reason)) {
+            event.preventDefault();
+            event.stopImmediatePropagation && event.stopImmediatePropagation();
+          }
+        }, true);
+        window.addEventListener('error', function (event) {
+          if (isWsError(event.message) || isWsError(event.error)) {
+            event.preventDefault();
+            event.stopImmediatePropagation && event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
