@@ -1,5 +1,5 @@
 import React from "react";
-import { Building2, Building, RefreshCw, ChevronDown, WifiOff, CheckCircle2, ListChecks, Sparkles, TrendingUp } from "lucide-react";
+import { Building2, Building, RefreshCw, ChevronDown, WifiOff, CheckCircle2, ListChecks, Sparkles, TrendingUp, Smartphone } from "lucide-react";
 import { SyncStatus } from "../lib/firebase";
 import { GmhLogo } from "./GmhLogo";
 
@@ -15,6 +15,7 @@ interface HeaderProps {
   onSelectSite: (siteName: string) => void;
   onOpenManageSites: () => void;
   onManualSync: () => void;
+  onOpenMobileInstall?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,6 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectSite,
   onOpenManageSites,
   onManualSync,
+  onOpenMobileInstall,
 }) => {
   const isOnline = syncStatus ? syncStatus.isOnline : true;
   const hasPending = syncStatus ? syncStatus.hasPendingSync : false;
@@ -113,6 +115,18 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Action Controls */}
           <div className="flex items-center gap-2 flex-wrap text-xs self-end md:self-auto">
+            {onOpenMobileInstall && (
+              <button
+                onClick={onOpenMobileInstall}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-colors cursor-pointer font-bold shadow-xs hover:border-emerald-400"
+                title="Add to Phone / Install Mobile App Shortcut"
+              >
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                <span className="hidden sm:inline">Add to Phone</span>
+                <span className="sm:hidden">App</span>
+              </button>
+            )}
+
             <button
               onClick={onOpenManageSites}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-colors cursor-pointer font-medium"

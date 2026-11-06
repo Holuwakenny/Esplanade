@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Printer, RotateCcw, Download, PieChart, Search, Filter, Building2, Calendar, FileText, Building, FolderPlus, FileDown, AlertCircle, Sparkles, Database, ArrowUpDown } from "lucide-react";
+import { Plus, Printer, RotateCcw, Download, PieChart, Search, Filter, Building2, Calendar, FileText, Building, FolderPlus, FileDown, AlertCircle, Sparkles, Database, ArrowUpDown, Smartphone } from "lucide-react";
 import { FilterState, DateFilterType } from "../types";
 
 interface ToolbarProps {
@@ -17,6 +17,7 @@ interface ToolbarProps {
   onOpenExecutiveSummary?: () => void;
   onOpenStorageOptions?: () => void;
   onOpenPdfExport?: () => void;
+  onOpenMobileInstall?: () => void;
   onExportCsv: () => void;
   onPrint: () => void;
   onReset: () => void;
@@ -37,6 +38,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenExecutiveSummary,
   onOpenStorageOptions,
   onOpenPdfExport,
+  onOpenMobileInstall,
   onExportCsv,
   onPrint,
   onReset,
@@ -123,6 +125,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <PieChart className="w-4 h-4 text-indigo-600" />
             <span>Trades</span>
           </button>
+
+          {onOpenMobileInstall && (
+            <button
+              onClick={onOpenMobileInstall}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-sm font-bold border border-emerald-300 transition-all cursor-pointer shadow-2xs"
+              title="Add mobile shortcut to home screen or install PWA"
+            >
+              <Smartphone className="w-4 h-4 text-emerald-600" />
+              <span>Mobile App</span>
+            </button>
+          )}
 
           {onOpenStorageOptions && (
             <button

@@ -15,6 +15,7 @@ import { ExecutiveSummaryModal } from "./components/ExecutiveSummaryModal";
 import { StorageOptionsModal } from "./components/StorageOptionsModal";
 import { PhotoModal } from "./components/PhotoModal";
 import { PdfExportModal } from "./components/PdfExportModal";
+import { MobileInstallModal } from "./components/MobileInstallModal";
 import { ToastNotification } from "./components/ToastNotification";
 import {
   syncToFirestore,
@@ -109,6 +110,7 @@ export default function App() {
   const [isExecutiveSummaryOpen, setIsExecutiveSummaryOpen] = useState(false);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isMobileInstallModalOpen, setIsMobileInstallModalOpen] = useState(false);
   const [activePhotoItem, setActivePhotoItem] = useState<{
     siteName: string;
     unit: string;
@@ -1195,6 +1197,7 @@ export default function App() {
         onSelectSite={handleSelectSite}
         onOpenManageSites={() => setIsManageSitesModalOpen(true)}
         onManualSync={handleManualSync}
+        onOpenMobileInstall={() => setIsMobileInstallModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -1284,6 +1287,7 @@ export default function App() {
               onOpenExecutiveSummary={() => setIsExecutiveSummaryOpen(true)}
               onOpenStorageOptions={() => setIsStorageModalOpen(true)}
               onOpenPdfExport={() => setIsPdfModalOpen(true)}
+              onOpenMobileInstall={() => setIsMobileInstallModalOpen(true)}
               onExportCsv={handleExportCsv}
               onPrint={handlePrint}
               onReset={handleReset}
@@ -1412,6 +1416,12 @@ export default function App() {
         sitesData={sitesData}
         activeSiteName={currentSite}
         filters={filters}
+      />
+
+      <MobileInstallModal
+        isOpen={isMobileInstallModalOpen}
+        onClose={() => setIsMobileInstallModalOpen(false)}
+        onShowToast={showToast}
       />
 
       {/* Cloud Sync Completion Toast Notification */}
