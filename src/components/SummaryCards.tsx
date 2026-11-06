@@ -77,85 +77,85 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Works */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
           <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Total Works
             </span>
-            <b className="text-3xl font-extrabold text-slate-900 block mt-1 tracking-tight">
+            <b className="text-2xl sm:text-3xl font-black text-slate-900 block mt-0.5 sm:mt-1 tracking-tight">
               {summary.total}
             </b>
           </div>
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
-            <Layers className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100 shrink-0">
+            <Layers className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
         {/* Pending Works */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
           <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Pending
             </span>
-            <b className="text-3xl font-extrabold text-slate-600 block mt-1 tracking-tight">
+            <b className="text-2xl sm:text-3xl font-black text-slate-600 block mt-0.5 sm:mt-1 tracking-tight">
               {summary.pending}
             </b>
           </div>
-          <div className="w-12 h-12 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center border border-slate-200/60">
-            <Clock className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center border border-slate-200/60 shrink-0">
+            <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
         {/* In Progress */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
           <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
               In Progress
             </span>
-            <b className="text-3xl font-extrabold text-amber-600 block mt-1 tracking-tight">
+            <b className="text-2xl sm:text-3xl font-black text-amber-600 block mt-0.5 sm:mt-1 tracking-tight">
               {summary.inProgress}
             </b>
           </div>
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-100">
-            <AlertCircle className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-100 shrink-0">
+            <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
         {/* Completed */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
           <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Completed
             </span>
-            <b className="text-3xl font-extrabold text-emerald-600 block mt-1 tracking-tight">
+            <b className="text-2xl sm:text-3xl font-black text-emerald-600 block mt-0.5 sm:mt-1 tracking-tight">
               {summary.completed}
             </b>
           </div>
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100 shrink-0">
+            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
       </div>
 
       {/* Overall Completion Progress Bar & Site-by-Site Grouped Breakdown */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
+      <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
         {/* Overall Close-Out Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <CheckSquare className="w-5 h-5 text-indigo-600" />
+            <CheckSquare className="w-5 h-5 text-indigo-600 shrink-0" />
             <h3 className="font-bold text-slate-900 text-sm">
               Overall Site Close-Out Completion Rate
             </h3>
           </div>
-          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/60">
+          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/60 self-start sm:self-auto">
             {summary.overallPct}% Completed ({summary.completed} of {summary.total})
           </span>
         </div>
 
         {/* Master Overall Progress Bar */}
-        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200/60">
+        <div className="w-full bg-slate-100 rounded-full h-3 sm:h-3.5 overflow-hidden p-0.5 border border-slate-200/60">
           <div
             className="bg-emerald-500 h-full rounded-full transition-all duration-500 ease-out"
             style={{ width: `${summary.overallPct}%` }}
@@ -179,37 +179,37 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
               {sitesArray.map(([siteName, siteStat]) => (
                 <div
                   key={siteName}
-                  className="bg-slate-50/90 rounded-xl p-3.5 border border-slate-200/80 space-y-2.5 transition-all hover:bg-slate-50"
+                  className="bg-slate-50/90 rounded-xl p-3 sm:p-3.5 border border-slate-200/80 space-y-2.5 transition-all hover:bg-slate-50"
                 >
                   {/* Site Row Header */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs shrink-0">
                         <Building2 className="w-4 h-4" />
                       </div>
-                      <div>
-                        <span className="font-extrabold text-slate-900 text-sm">{siteName}</span>
-                        <span className="text-[11px] text-slate-500 ml-2">
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-slate-900 text-sm truncate block sm:inline">{siteName}</span>
+                        <span className="text-[11px] text-slate-500 sm:ml-2 block sm:inline">
                           ({siteStat.completed} of {siteStat.total} works completed)
                         </span>
                       </div>
                     </div>
 
                     {/* 5 Points KPI Metrics by Site */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200" title="Total scope work items">
+                    <div className="grid grid-cols-2 xs:grid-cols-3 sm:flex items-center gap-1.5 w-full sm:w-auto">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 text-center" title="Total scope work items">
                         Total: <strong>{siteStat.total}</strong>
                       </span>
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200" title="Completed work items">
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-center" title="Completed work items">
                         Done: <strong>{siteStat.completed}</strong>
                       </span>
-                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" title="Ongoing in-progress work items">
+                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-center" title="Ongoing in-progress work items">
                         Ongoing: <strong>{siteStat.inProgress}</strong>
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title="Pending work items">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-center" title="Pending work items">
                         Pending: <strong>{siteStat.pending}</strong>
                       </span>
-                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                      <span className="col-span-2 xs:col-span-1 text-xs font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs text-center">
                         {siteStat.pct}% Rate
                       </span>
                     </div>

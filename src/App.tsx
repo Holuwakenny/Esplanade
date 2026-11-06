@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ListChecks, Sparkles, AlertTriangle, TrendingUp } from "lucide-react";
+import { ListChecks, Sparkles, AlertTriangle, TrendingUp, Plus, Smartphone } from "lucide-react";
 import { Header } from "./components/Header";
 import { SummaryCards } from "./components/SummaryCards";
 import { Toolbar } from "./components/Toolbar";
@@ -1201,41 +1201,43 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className={`flex-1 max-w-[1400px] w-full mx-auto p-4 sm:p-6 space-y-6 ${isReportsModalOpen || isPdfModalOpen ? "print:hidden" : ""}`}>
+      <main className={`flex-1 max-w-[1400px] w-full mx-auto px-2.5 sm:px-6 py-3 sm:py-6 space-y-4 sm:space-y-6 pb-24 sm:pb-8 ${isReportsModalOpen || isPdfModalOpen ? "print:hidden" : ""}`}>
         {/* Prominent View Switcher Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden">
-          <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-xl w-full sm:w-auto">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/80 p-1 sm:p-1.5 rounded-xl w-full sm:w-auto">
             <button
               onClick={() => setMainViewTab("works")}
-              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
                 mainViewTab === "works"
                   ? "bg-indigo-600 text-white shadow-md"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
-              <ListChecks className="w-4 h-4 text-indigo-300" />
-              <span>1. Outstanding Works Tracker</span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[11px] font-black">
+              <ListChecks className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-300 shrink-0" />
+              <span className="hidden sm:inline">1. Outstanding Works Tracker</span>
+              <span className="sm:hidden">1. Works</span>
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[10px] sm:text-[11px] font-black">
                 {summary.total}
               </span>
             </button>
 
             <button
               onClick={() => setMainViewTab("plans")}
-              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
                 mainViewTab === "plans"
                   ? "bg-amber-500 text-slate-950 shadow-md"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
-              <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>2. Issues & Action Plans</span>
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
+              <span className="hidden sm:inline">2. Issues & Action Plans</span>
+              <span className="sm:hidden">2. Plans</span>
               {pendingPlansCounts.totalPending > 0 ? (
-                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[11px]">
-                  {pendingPlansCounts.totalPending} pending
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[10px] sm:text-[11px]">
+                  {pendingPlansCounts.totalPending}
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold text-[11px]">
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold text-[10px] sm:text-[11px]">
                   0
                 </span>
               )}
@@ -1243,15 +1245,16 @@ export default function App() {
 
             <button
               onClick={() => setMainViewTab("pace")}
-              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
                 mainViewTab === "pace"
                   ? "bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
-              <TrendingUp className="w-4 h-4 text-emerald-300" />
-              <span>3. Progression Pace</span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[11px] font-black">
+              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300 shrink-0" />
+              <span className="hidden sm:inline">3. Progression Pace</span>
+              <span className="sm:hidden">3. Pace</span>
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[10px] sm:text-[11px] font-black">
                 {summary.overallPct}%
               </span>
             </button>
@@ -1268,10 +1271,7 @@ export default function App() {
         {/* View Content */}
         {mainViewTab === "works" ? (
           <>
-            {/* KPI Cards & Overall Progress */}
-            <SummaryCards summary={summary} filters={filters} />
-
-            {/* Filters Toolbar & Actions */}
+            {/* 1. Filters & Search Toolbar (POSITIONED PROMINENTLY ABOVE CLOSE-OUT PROGRESS) */}
             <Toolbar
               filters={filters}
               onFilterChange={handleFilterChange}
@@ -1293,6 +1293,10 @@ export default function App() {
               onReset={handleReset}
             />
 
+            {/* 2. KPI Summary Cards & Close-Out Completion Rate (Directly BELOW Filters) */}
+            <SummaryCards summary={summary} filters={filters} />
+
+            {/* 3. Outstanding Works Grid & Mobile Cards */}
             <WorkTable
               sitesData={sitesData}
               allSitesList={allSitesList}
@@ -1332,6 +1336,62 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Mobile Ergonomic Bottom Tab Bar (Fixed for 1-Thumb Reach on Smartphones) */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-3 py-2 flex items-center justify-around text-slate-400 print:hidden shadow-2xl safe-area-bottom">
+        <button
+          onClick={() => setMainViewTab("works")}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer ${
+            mainViewTab === "works" ? "text-indigo-400 font-black" : "hover:text-slate-200"
+          }`}
+        >
+          <ListChecks className="w-5 h-5" />
+          <span>Works ({summary.total})</span>
+        </button>
+
+        <button
+          onClick={() => setMainViewTab("plans")}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer relative ${
+            mainViewTab === "plans" ? "text-amber-400 font-black" : "hover:text-slate-200"
+          }`}
+        >
+          <Sparkles className="w-5 h-5" />
+          <span>Plans</span>
+          {pendingPlansCounts.totalPending > 0 && (
+            <span className="absolute -top-1 right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+              {pendingPlansCounts.totalPending}
+            </span>
+          )}
+        </button>
+
+        {/* Center Primary Action (+) */}
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex flex-col items-center justify-center w-11 h-11 rounded-full bg-indigo-600 active:bg-indigo-700 text-white shadow-lg active:scale-95 transition-transform cursor-pointer -mt-5 border-2 border-slate-900"
+          title="Add Work Item"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+
+        <button
+          onClick={() => setMainViewTab("pace")}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer ${
+            mainViewTab === "pace" ? "text-emerald-400 font-black" : "hover:text-slate-200"
+          }`}
+        >
+          <TrendingUp className="w-5 h-5" />
+          <span>Pace ({summary.overallPct}%)</span>
+        </button>
+
+        <button
+          onClick={() => setIsMobileInstallModalOpen(true)}
+          className="flex flex-col items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-300 transition-colors cursor-pointer"
+          title="Install Mobile App"
+        >
+          <Smartphone className="w-5 h-5 text-emerald-400" />
+          <span>App</span>
+        </button>
+      </nav>
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 text-center py-6 text-xs text-slate-500 mt-12 print:hidden">
