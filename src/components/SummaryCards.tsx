@@ -162,124 +162,71 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, filters }) 
           />
         </div>
 
-        {/* Grouped by Sites Section */}
-        {sitesArray.length > 0 ? (
+        {/* Single Progress Tree for Each Site (Clean & Functional - No unit chips) */}
+        {sitesArray.length > 0 && (
           <div className="space-y-3 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
                 <Building className="w-3.5 h-3.5 text-indigo-600" />
-                Close-Out Progress Grouped by Sites
+                Close-Out Progress by Site
               </span>
               <span className="text-[11px] font-medium text-slate-400">
-                {sitesArray.length} {sitesArray.length === 1 ? "Site" : "Sites"} Active
+                {sitesArray.length} {sitesArray.length === 1 ? "Active Site" : "Active Sites"}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2.5">
               {sitesArray.map(([siteName, siteStat]) => (
                 <div
                   key={siteName}
-                  className="bg-slate-50/90 rounded-xl p-3 sm:p-3.5 border border-slate-200/80 space-y-2.5 transition-all hover:bg-slate-50"
+                  className="bg-slate-50/90 rounded-xl p-3 sm:p-3.5 border border-slate-200/80 space-y-2 transition-all hover:bg-slate-100/60"
                 >
-                  {/* Site Row Header */}
+                  {/* Site Row Header with Metrics */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs shrink-0">
                         <Building2 className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="font-extrabold text-slate-900 text-sm truncate block sm:inline">{siteName}</span>
-                        <span className="text-[11px] text-slate-500 sm:ml-2 block sm:inline">
-                          ({siteStat.completed} of {siteStat.total} works completed)
+                        <span className="font-extrabold text-slate-900 text-sm truncate">{siteName}</span>
+                        <span className="text-[11px] text-slate-500 ml-2">
+                          ({siteStat.completed} of {siteStat.total} works done)
                         </span>
                       </div>
                     </div>
 
-                    {/* 5 Points KPI Metrics by Site */}
-                    <div className="grid grid-cols-2 xs:grid-cols-3 sm:flex items-center gap-1.5 w-full sm:w-auto">
-                      <span className="text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 text-center" title="Total scope work items">
+                    {/* KPI Badges by Site */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 text-center">
                         Total: <strong>{siteStat.total}</strong>
                       </span>
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-center" title="Completed work items">
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-center">
                         Done: <strong>{siteStat.completed}</strong>
                       </span>
-                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-center" title="Ongoing in-progress work items">
+                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-center">
                         Ongoing: <strong>{siteStat.inProgress}</strong>
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-center" title="Pending work items">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-center">
                         Pending: <strong>{siteStat.pending}</strong>
                       </span>
-                      <span className="col-span-2 xs:col-span-1 text-xs font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs text-center">
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
                         {siteStat.pct}% Rate
                       </span>
                     </div>
                   </div>
 
-                  {/* Site Progress Bar */}
-                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                  {/* Single Clean Site Progress Bar */}
+                  <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
                     <div
-                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${siteStat.pct}%` }}
                     />
                   </div>
-
-                  {/* Units under this specific site */}
-                  {siteStat.unitStats && Object.keys(siteStat.unitStats).length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
-                      {(Object.entries(siteStat.unitStats) as [string, UnitStat][]).map(([unit, uStat]) => (
-                        <div
-                          key={unit}
-                          className="bg-white p-2 rounded-lg border border-slate-200/70 flex flex-col justify-between shadow-2xs"
-                        >
-                          <div className="flex justify-between font-bold text-[11px] text-slate-800">
-                            <span>{unit}</span>
-                            <span className="text-indigo-600">{uStat.pct}%</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
-                            <div
-                              className="bg-indigo-600 h-full rounded-full"
-                              style={{ width: `${uStat.pct}%` }}
-                            />
-                          </div>
-                          <span className="text-[9px] font-medium text-slate-400 mt-1">
-                            {uStat.completed}/{uStat.total} done
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           </div>
-        ) : summary.unitStats && Object.keys(summary.unitStats).length > 0 ? (
-          /* Fallback Unit-by-Unit Status Chips */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-3 border-t border-slate-100 text-xs">
-            {Object.entries(summary.unitStats).map(([unit, statsData]) => {
-              const stats = statsData as { total: number; completed: number; pct: number };
-              return (
-                <div
-                  key={unit}
-                  className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200/70 flex flex-col justify-between"
-                >
-                  <div className="flex justify-between font-bold text-slate-800">
-                    <span>{unit}</span>
-                    <span className="text-indigo-600">{stats.pct}%</span>
-                  </div>
-                  <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                    <div
-                      className="bg-indigo-600 h-full rounded-full"
-                      style={{ width: `${stats.pct}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-medium text-slate-400 mt-1">
-                    {stats.completed}/{stats.total} works done
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
+        )}
       </div>
     </div>
   );

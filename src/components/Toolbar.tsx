@@ -21,12 +21,20 @@ import {
   X,
   Layers,
   CheckCircle2,
+  Camera,
+  Flame,
+  AlertTriangle,
+  Activity,
+  ArrowDown,
+  Clock,
 } from "lucide-react";
 import { FilterState, DateFilterType } from "../types";
+import { MultiSelectDropdown, MultiSelectOption } from "./MultiSelectDropdown";
+import { getActiveFilterCount } from "../utils/filterUtils";
 
 interface ToolbarProps {
   filters: FilterState;
-  onFilterChange: (field: keyof FilterState, value: string) => void;
+  onFilterChange: (field: keyof FilterState, value: any) => void;
   sitesList: string[];
   units: string[];
   floors: string[];
@@ -40,6 +48,7 @@ interface ToolbarProps {
   onOpenStorageOptions?: () => void;
   onOpenPdfExport?: () => void;
   onOpenMobileInstall?: () => void;
+  onOpenPicturesView?: () => void;
   onExportCsv: () => void;
   onPrint: () => void;
   onReset: () => void;
@@ -61,32 +70,93 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenStorageOptions,
   onOpenPdfExport,
   onOpenMobileInstall,
+  onOpenPicturesView,
   onExportCsv,
   onPrint,
   onReset,
 }) => {
   // Count active filters
-  const activeFiltersCount = [
-    filters.site !== "all",
-    filters.sortBy && filters.sortBy !== "site",
-    filters.dateFilter !== "all",
-    filters.unit !== "all",
-    filters.floor !== "all",
-    filters.priority && filters.priority !== "all",
-    filters.status !== "all",
-    filters.trade !== "all",
-  ].filter(Boolean).length;
+  const activeFiltersCount = getActiveFilterCount(filters);
 
   const handleResetFilters = () => {
     onFilterChange("site", "all");
+    onFilterChange("sites", []);
     onFilterChange("sortBy", "site");
     onFilterChange("dateFilter", "all");
     onFilterChange("unit", "all");
+    onFilterChange("units", []);
     onFilterChange("floor", "all");
+    onFilterChange("floors", []);
     onFilterChange("priority", "all");
+    onFilterChange("priorities", []);
     onFilterChange("status", "all");
+    onFilterChange("statuses", []);
     onFilterChange("trade", "all");
+    onFilterChange("trades", []);
+    onFilterChange("search", "");
   };
+
+  // Prepare options for multi-select dropdowns
+  const siteOptions: MultiSelectOption[] = sitesList.map((s) => ({
+    value: s,
+    label: s,
+  }));
+
+  const unitOptions: MultiSelectOption[] = units.map((u) => ({
+    value: u,
+    label: u,
+  }));
+
+  const floorOptions: MultiSelectOption[] = floors.map((f) => ({
+    value: f,
+    label: f,
+  }));
+
+  const priorityOptions: MultiSelectOption[] = [
+    {
+      value: "Critical",
+      label: "Critical",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">🔥 Critical</span>,
+    },
+    {
+      value: "High",
+      label: "High",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900">⚠️ High</span>,
+    },
+    {
+      value: "Medium",
+      label: "Medium",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800">⚡ Medium</span>,
+    },
+    {
+      value: "Low",
+      label: "Low",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">🔽 Low</span>,
+    },
+  ];
+
+  const statusOptions: MultiSelectOption[] = [
+    {
+      value: "Pending",
+      label: "Pending",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">Pending</span>,
+    },
+    {
+      value: "In Progress",
+      label: "In Progress",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900">In Progress</span>,
+    },
+    {
+      value: "Completed",
+      label: "Completed",
+      badge: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Completed</span>,
+    },
+  ];
+
+  const tradeOptions: MultiSelectOption[] = trades.map((t) => ({
+    value: t,
+    label: t,
+  }));
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-5 shadow-xs mb-6 space-y-4">
@@ -98,6 +168,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <Filter className="w-4 h-4 text-indigo-600" />
             <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
               Scope & Filter Criteria
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+              Multi-Select Enabled
             </span>
             {activeFiltersCount > 0 ? (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-2xs">
@@ -123,24 +196,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {/* The 8 Filters Grid: 2 columns on mobile, 4 on tablet, 8 on desktop */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-xs">
-          {/* 1. Site / Category */}
-          <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
-            <label className="font-bold text-indigo-950 flex items-center gap-1 text-[11px] truncate">
-              <Building className="w-3 h-3 text-indigo-600 shrink-0" />
-              <span>Site / Category</span>
-            </label>
-            <select
-              value={filters.site}
-              onChange={(e) => onFilterChange("site", e.target.value)}
-              className="w-full p-2 bg-white border border-indigo-200 rounded-lg text-slate-900 text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[42px] cursor-pointer"
-            >
-              <option value="all">All Sites & Categories</option>
-              {sitesList.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          {/* 1. Site / Category (Multi-Select) */}
+          <div className="col-span-2 sm:col-span-1">
+            <MultiSelectDropdown
+              label="Site / Category"
+              icon={<Building className="w-3 h-3 text-indigo-600 shrink-0" />}
+              options={siteOptions}
+              selectedValues={
+                filters.sites && filters.sites.length > 0
+                  ? filters.sites
+                  : filters.site !== "all"
+                  ? [filters.site]
+                  : []
+              }
+              onChange={(vals) => {
+                onFilterChange("sites", vals);
+                if (vals.length === 1) onFilterChange("site", vals[0]);
+                else if (vals.length === 0) onFilterChange("site", "all");
+              }}
+              allLabel="All Sites & Categories"
+              variant="primary"
+            />
           </div>
 
           {/* 2. Sort Items By */}
@@ -182,101 +258,114 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </select>
           </div>
 
-          {/* 4. Unit */}
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-600 flex items-center gap-1 text-[11px] truncate">
-              <Building2 className="w-3 h-3 text-slate-500 shrink-0" />
-              <span>Unit</span>
-            </label>
-            <select
-              value={filters.unit}
-              onChange={(e) => onFilterChange("unit", e.target.value)}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[42px] cursor-pointer"
-            >
-              <option value="all">All Units</option>
-              {units.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
+          {/* 4. Unit (Multi-Select) */}
+          <div>
+            <MultiSelectDropdown
+              label="Unit"
+              icon={<Building2 className="w-3 h-3 text-slate-500 shrink-0" />}
+              options={unitOptions}
+              selectedValues={
+                filters.units && filters.units.length > 0
+                  ? filters.units
+                  : filters.unit !== "all"
+                  ? [filters.unit]
+                  : []
+              }
+              onChange={(vals) => {
+                onFilterChange("units", vals);
+                if (vals.length === 1) onFilterChange("unit", vals[0]);
+                else if (vals.length === 0) onFilterChange("unit", "all");
+              }}
+              allLabel="All Units"
+            />
           </div>
 
-          {/* 5. Floor */}
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-600 flex items-center gap-1 text-[11px] truncate">
-              <Layers className="w-3 h-3 text-slate-500 shrink-0" />
-              <span>Floor</span>
-            </label>
-            <select
-              value={filters.floor}
-              onChange={(e) => onFilterChange("floor", e.target.value)}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[42px] cursor-pointer"
-            >
-              <option value="all">All Floors</option>
-              {floors.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
+          {/* 5. Floor (Multi-Select) */}
+          <div>
+            <MultiSelectDropdown
+              label="Floor"
+              icon={<Layers className="w-3 h-3 text-slate-500 shrink-0" />}
+              options={floorOptions}
+              selectedValues={
+                filters.floors && filters.floors.length > 0
+                  ? filters.floors
+                  : filters.floor !== "all"
+                  ? [filters.floor]
+                  : []
+              }
+              onChange={(vals) => {
+                onFilterChange("floors", vals);
+                if (vals.length === 1) onFilterChange("floor", vals[0]);
+                else if (vals.length === 0) onFilterChange("floor", "all");
+              }}
+              allLabel="All Floors"
+            />
           </div>
 
-          {/* 6. Priority */}
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-600 flex items-center gap-1 text-[11px] truncate">
-              <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
-              <span>Priority</span>
-            </label>
-            <select
-              value={filters.priority || "all"}
-              onChange={(e) => onFilterChange("priority", e.target.value)}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[42px] cursor-pointer"
-            >
-              <option value="all">All Priorities</option>
-              <option value="Critical">🔥 Critical</option>
-              <option value="High">⚠️ High</option>
-              <option value="Medium">⚡ Medium</option>
-              <option value="Low">🔽 Low</option>
-            </select>
+          {/* 6. Priority (Multi-Select) */}
+          <div>
+            <MultiSelectDropdown
+              label="Priority"
+              icon={<AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />}
+              options={priorityOptions}
+              selectedValues={
+                filters.priorities && filters.priorities.length > 0
+                  ? filters.priorities
+                  : filters.priority && filters.priority !== "all"
+                  ? [filters.priority]
+                  : []
+              }
+              onChange={(vals) => {
+                onFilterChange("priorities", vals);
+                if (vals.length === 1) onFilterChange("priority", vals[0]);
+                else if (vals.length === 0) onFilterChange("priority", "all");
+              }}
+              allLabel="All Priorities"
+            />
           </div>
 
-          {/* 7. Status */}
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-600 flex items-center gap-1 text-[11px] truncate">
-              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-              <span>Status</span>
-            </label>
-            <select
-              value={filters.status}
-              onChange={(e) => onFilterChange("status", e.target.value)}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[42px] cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Completed">Completed</option>
-            </select>
+          {/* 7. Status (Multi-Select) */}
+          <div>
+            <MultiSelectDropdown
+              label="Status"
+              icon={<CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
+              options={statusOptions}
+              selectedValues={
+                filters.statuses && filters.statuses.length > 0
+                  ? filters.statuses
+                  : filters.status !== "all"
+                  ? [filters.status]
+                  : []
+              }
+              onChange={(vals) => {
+                onFilterChange("statuses", vals);
+                if (vals.length === 1) onFilterChange("status", vals[0]);
+                else if (vals.length === 0) onFilterChange("status", "all");
+              }}
+              allLabel="All Statuses"
+            />
           </div>
 
-          {/* 8. Trade / Artisan */}
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-600 flex items-center gap-1 text-[11px] truncate">
-              <PieChart className="w-3 h-3 text-slate-500 shrink-0" />
-              <span>Trade / Artisan</span>
-            </label>
-            <select
-              value={filters.trade}
-              onChange={(e) => onFilterChange("trade", e.target.value)}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[42px] cursor-pointer"
-            >
-              <option value="all">All Trades</option>
-              {trades.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+          {/* 8. Trade / Artisan (Multi-Select) */}
+          <div>
+            <MultiSelectDropdown
+              label="Trade / Artisan"
+              icon={<PieChart className="w-3 h-3 text-slate-500 shrink-0" />}
+              options={tradeOptions}
+              selectedValues={
+                filters.trades && filters.trades.length > 0
+                  ? filters.trades
+                  : filters.trade !== "all"
+                  ? [filters.trade]
+                  : []
+              }
+              onChange={(vals) => {
+                onFilterChange("trades", vals);
+                if (vals.length === 1) onFilterChange("trade", vals[0]);
+                else if (vals.length === 0) onFilterChange("trade", "all");
+              }}
+              allLabel="All Trades"
+            />
           </div>
         </div>
 
@@ -339,6 +428,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <Plus className="w-4 h-4" />
             <span>Add Work</span>
           </button>
+
+          {/* Works with Pictures View Button */}
+          {onOpenPicturesView && (
+            <button
+              onClick={onOpenPicturesView}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#071D49] hover:bg-slate-900 active:bg-black text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer ring-1 ring-[#D4AF37]/60 shrink-0 min-h-[42px]"
+              title="View all works and tasks with pictures and inspection photos on-screen"
+            >
+              <Camera className="w-4 h-4 text-[#D4AF37]" />
+              <span className="text-[#D4AF37]">Works with Pictures</span>
+            </button>
+          )}
 
           {/* 5-Point Executive Word Summary */}
           {onOpenExecutiveSummary && (

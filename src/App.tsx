@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ListChecks, Sparkles, AlertTriangle, TrendingUp, Plus, Smartphone } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { ListChecks, Sparkles, AlertTriangle, TrendingUp, Plus, Smartphone, Camera } from "lucide-react";
 import { Header } from "./components/Header";
 import { SummaryCards } from "./components/SummaryCards";
 import { Toolbar } from "./components/Toolbar";
 import { WorkTable } from "./components/WorkTable";
 import { SitePlansView } from "./components/SitePlansView";
 import { ProgressionPaceView } from "./components/ProgressionPaceView";
+import { WorksWithPicturesView } from "./components/WorksWithPicturesView";
 import { AddWorkModal } from "./components/AddWorkModal";
 import { TradeAnalyticsModal } from "./components/TradeAnalyticsModal";
 import { ManageUnitsModal } from "./components/ManageUnitsModal";
@@ -30,6 +31,7 @@ import {
 } from "./lib/firebase";
 import { createEsplanade6Template, createEGC3Template } from "./utils/siteTemplates";
 import { isItemMatchingDateFilter } from "./utils/dateUtils";
+import { isItemMatchingFilters } from "./utils/filterUtils";
 import { getSitePlans, countPendingPlans } from "./lib/plansUtils";
 import {
   SiteTrackerData,
@@ -98,8 +100,8 @@ export default function App() {
   // Track timestamp of last local edit to protect user input from stale remote snapshots
   const lastLocalUpdateRef = useRef<number>(0);
 
-  // Main active tab ("works", "plans", or "pace")
-  const [mainViewTab, setMainViewTab] = useState<"works" | "plans" | "pace">("works");
+  // Main active tab ("works", "plans", "pace", or "photos")
+  const [mainViewTab, setMainViewTab] = useState<"works" | "plans" | "pace" | "photos">("works");
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -154,7 +156,9 @@ export default function App() {
       const siteStats: { [siteName: string]: SiteStat } = {};
 
       const siteKeysToInspect =
-        currentFilters.site === "all"
+        currentFilters.sites && currentFilters.sites.length > 0
+          ? currentFilters.sites.filter((s) => allSitesMap[s])
+          : currentFilters.site === "all"
           ? Object.keys(allSitesMap).sort((a, b) => a.localeCompare(b))
           : [
               currentFilters.site && allSitesMap[currentFilters.site]
@@ -178,7 +182,6 @@ export default function App() {
 
         Object.entries(siteData).forEach(([unitName, unit]) => {
           if (unitName.startsWith("_")) return;
-          if (currentFilters.unit !== "all" && currentFilters.unit !== unitName) return;
 
           if (!unitStats[unitName]) {
             unitStats[unitName] = { total: 0, completed: 0, pct: 0 };
@@ -188,38 +191,9 @@ export default function App() {
           }
 
           Object.entries(unit).forEach(([floorName, items]) => {
-            if (currentFilters.floor !== "all" && currentFilters.floor !== floorName) return;
-
             items.forEach((item) => {
-              if (currentFilters.status !== "all" && item.status !== currentFilters.status) return;
-              if (currentFilters.trade !== "all" && item.trade !== currentFilters.trade) return;
-              if (
-                currentFilters.priority &&
-                currentFilters.priority !== "all" &&
-                (item.priority || "Medium") !== currentFilters.priority
-              ) {
+              if (!isItemMatchingFilters(item, siteKey, unitName, floorName, currentFilters)) {
                 return;
-              }
-
-              // Date Filter logic for KPIs (strictly enforces exclusions for daily/weekly/monthly/custom filters)
-              if (
-                !isItemMatchingDateFilter(
-                  item.updatedAt,
-                  currentFilters.dateFilter,
-                  currentFilters.startDate,
-                  currentFilters.endDate
-                )
-              ) {
-                return;
-              }
-
-              if (currentFilters.search) {
-                const q = currentFilters.search.toLowerCase();
-                const matchArea = (item.area || "").toLowerCase().includes(q);
-                const matchWork = (item.work || "").toLowerCase().includes(q);
-                const matchTrade = (item.trade || "").toLowerCase().includes(q);
-                const matchNotes = (item.notes || "").toLowerCase().includes(q);
-                if (!matchArea && !matchWork && !matchTrade && !matchNotes) return;
               }
 
               total++;
@@ -581,8 +555,8 @@ export default function App() {
     persistAllSites(newSitesMap, siteName);
   };
 
-  // Filter change handler
-  const handleFilterChange = (field: keyof FilterState, value: string) => {
+  // Filter change handler supporting single-values and multi-select arrays
+  const handleFilterChange = (field: keyof FilterState, value: any) => {
     setFilters((prev) => {
       const updated = { ...prev, [field]: value };
       if (field === "site") {
@@ -590,6 +564,15 @@ export default function App() {
           setCurrentSite("all");
         } else if (sitesData[value]) {
           setCurrentSite(value);
+        }
+      } else if (field === "sites") {
+        const arr = (value as string[]) || [];
+        if (arr.length === 1 && sitesData[arr[0]]) {
+          setCurrentSite(arr[0]);
+          updated.site = arr[0];
+        } else if (arr.length === 0) {
+          setCurrentSite("all");
+          updated.site = "all";
         }
       }
       return updated;
@@ -1182,6 +1165,27 @@ export default function App() {
   const currentSitePlans = getSitePlans(sitesData, currentSite);
   const pendingPlansCounts = countPendingPlans(currentSitePlans);
 
+  // Total count of photos across dataset for header and tabs
+  const totalPhotosCount = useMemo(() => {
+    let count = 0;
+    Object.entries(sitesData).forEach(([_, units]) => {
+      Object.entries(units).forEach(([unitName, floors]) => {
+        if (unitName.startsWith("_")) return;
+        const floorMap = (floors || {}) as Record<string, WorkItem[]>;
+        Object.entries(floorMap).forEach(([_, items]) => {
+          if (Array.isArray(items)) {
+            items.forEach((item) => {
+              if (item.photos && item.photos.length > 0) {
+                count += item.photos.length;
+              }
+            });
+          }
+        });
+      });
+    });
+    return count;
+  }, [sitesData]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Brand & Site Header */}
@@ -1193,6 +1197,7 @@ export default function App() {
         mainViewTab={mainViewTab}
         pendingPlansCount={pendingPlansCounts.totalPending}
         totalWorksCount={summary.total}
+        totalPhotosCount={totalPhotosCount}
         onSelectViewTab={setMainViewTab}
         onSelectSite={handleSelectSite}
         onOpenManageSites={() => setIsManageSitesModalOpen(true)}
@@ -1202,14 +1207,15 @@ export default function App() {
 
       {/* Main Container */}
       <main className={`flex-1 max-w-[1400px] w-full mx-auto px-2.5 sm:px-6 py-3 sm:py-6 space-y-4 sm:space-y-6 pb-24 sm:pb-8 ${isReportsModalOpen || isPdfModalOpen ? "print:hidden" : ""}`}>
-        {/* Prominent View Switcher Bar */}
+        {/* Prominent View Switcher Bar (4 Primary Modes) */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden">
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/80 p-1 sm:p-1.5 rounded-xl w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/80 p-1 sm:p-1.5 rounded-xl w-full sm:w-auto overflow-x-auto no-scrollbar">
+            {/* Tab 1: Outstanding Works */}
             <button
               onClick={() => setMainViewTab("works")}
-              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
                 mainViewTab === "works"
-                  ? "bg-indigo-600 text-white shadow-md"
+                  ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
@@ -1221,11 +1227,12 @@ export default function App() {
               </span>
             </button>
 
+            {/* Tab 2: Action Plans & Issues */}
             <button
               onClick={() => setMainViewTab("plans")}
-              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
                 mainViewTab === "plans"
-                  ? "bg-amber-500 text-slate-950 shadow-md"
+                  ? "bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300/50"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
               }`}
             >
@@ -1243,9 +1250,10 @@ export default function App() {
               )}
             </button>
 
+            {/* Tab 3: Progression Pace */}
             <button
               onClick={() => setMainViewTab("pace")}
-              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
                 mainViewTab === "pace"
                   ? "bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
@@ -1257,6 +1265,28 @@ export default function App() {
               <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-900/30 text-white text-[10px] sm:text-[11px] font-black">
                 {summary.overallPct}%
               </span>
+            </button>
+
+            {/* Tab 4: Dedicated Works with Pictures View */}
+            <button
+              onClick={() => setMainViewTab("photos")}
+              className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
+                mainViewTab === "photos"
+                  ? "bg-[#D4AF37] text-slate-950 shadow-md ring-2 ring-[#D4AF37]/50"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+              title="View all works and tasks with pictures and inspection photos on-screen"
+            >
+              <Camera className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${mainViewTab === "photos" ? "text-slate-950" : "text-[#D4AF37]"}`} />
+              <span className="hidden sm:inline">4. Works with Pictures</span>
+              <span className="sm:hidden">4. Pictures</span>
+              {totalPhotosCount > 0 && (
+                <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black ${
+                  mainViewTab === "photos" ? "bg-slate-900 text-[#D4AF37]" : "bg-[#D4AF37]/20 text-[#D4AF37]"
+                }`}>
+                  {totalPhotosCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -1288,6 +1318,7 @@ export default function App() {
               onOpenStorageOptions={() => setIsStorageModalOpen(true)}
               onOpenPdfExport={() => setIsPdfModalOpen(true)}
               onOpenMobileInstall={() => setIsMobileInstallModalOpen(true)}
+              onOpenPicturesView={() => setMainViewTab("photos")}
               onExportCsv={handleExportCsv}
               onPrint={handlePrint}
               onReset={handleReset}
@@ -1327,18 +1358,54 @@ export default function App() {
               onPersist={persistAllSites}
             />
           </>
-        ) : (
+        ) : mainViewTab === "pace" ? (
           <ProgressionPaceView
             sitesData={sitesData}
             allSitesList={allSitesList}
             currentSite={currentSite}
             onSelectSite={handleSelectSite}
           />
+        ) : (
+          <>
+            {/* 1. Filters & Search Toolbar (POSITIONED PROMINENTLY ABOVE VISUAL REPORT) */}
+            <Toolbar
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              sitesList={allSitesList}
+              units={unitsList}
+              floors={floorsList}
+              trades={tradesList}
+              onAddWork={() => setIsAddModalOpen(true)}
+              onOpenManageSites={() => setIsManageSitesModalOpen(true)}
+              onOpenManageUnits={() => setIsManageUnitsModalOpen(true)}
+              onOpenTradeAnalytics={() => setIsTradeModalOpen(true)}
+              onOpenReports={() => setIsReportsModalOpen(true)}
+              onOpenExecutiveSummary={() => setIsExecutiveSummaryOpen(true)}
+              onOpenStorageOptions={() => setIsStorageModalOpen(true)}
+              onOpenPdfExport={() => setIsPdfModalOpen(true)}
+              onOpenMobileInstall={() => setIsMobileInstallModalOpen(true)}
+              onOpenPicturesView={() => setMainViewTab("photos")}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrint}
+              onReset={handleReset}
+            />
+
+            {/* 2. Interactive Works with Pictures View */}
+            <WorksWithPicturesView
+              sitesData={sitesData}
+              allSitesList={allSitesList}
+              activeSiteName={currentSite}
+              filters={filters}
+              onUpdateItem={handleUpdateItem}
+              onOpenPhotos={handleOpenPhotos}
+              onOpenPrintReport={() => setIsPdfModalOpen(true)}
+            />
+          </>
         )}
       </main>
 
       {/* Mobile Ergonomic Bottom Tab Bar (Fixed for 1-Thumb Reach on Smartphones) */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-3 py-2 flex items-center justify-around text-slate-400 print:hidden shadow-2xl safe-area-bottom">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-2 py-2 flex items-center justify-around text-slate-400 print:hidden shadow-2xl safe-area-bottom">
         <button
           onClick={() => setMainViewTab("works")}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer ${
@@ -1373,6 +1440,23 @@ export default function App() {
           <Plus className="w-6 h-6" />
         </button>
 
+        {/* 4. Pictures View for Mobile */}
+        <button
+          onClick={() => setMainViewTab("photos")}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer relative ${
+            mainViewTab === "photos" ? "text-[#D4AF37] font-black" : "hover:text-slate-200"
+          }`}
+          title="Works with Pictures"
+        >
+          <Camera className="w-5 h-5" />
+          <span>Pictures</span>
+          {totalPhotosCount > 0 && (
+            <span className="absolute -top-1 right-1 w-4 h-4 rounded-full bg-[#D4AF37] text-slate-950 text-[9px] font-black flex items-center justify-center shadow-xs">
+              {totalPhotosCount > 99 ? "99+" : totalPhotosCount}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={() => setMainViewTab("pace")}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer ${
@@ -1381,15 +1465,6 @@ export default function App() {
         >
           <TrendingUp className="w-5 h-5" />
           <span>Pace ({summary.overallPct}%)</span>
-        </button>
-
-        <button
-          onClick={() => setIsMobileInstallModalOpen(true)}
-          className="flex flex-col items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-300 transition-colors cursor-pointer"
-          title="Install Mobile App"
-        >
-          <Smartphone className="w-5 h-5 text-emerald-400" />
-          <span>App</span>
         </button>
       </nav>
 

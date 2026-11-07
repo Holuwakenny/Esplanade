@@ -4,6 +4,7 @@ import { SitesMap, WorkItem, FilterState } from "../types";
 import { getSitePlans } from "../lib/plansUtils";
 import { SitePlansReportSection } from "./SitePlansReportSection";
 import { isItemMatchingDateFilter } from "../utils/dateUtils";
+import { isItemMatchingFilters } from "../utils/filterUtils";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -62,23 +63,9 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     const sData = sitesData[sKey] || {};
     Object.entries(sData).forEach(([unitName, unitFloors]) => {
       if (unitName.startsWith("_")) return;
-      if (filters.unit !== "all" && filters.unit !== unitName) return;
       Object.entries(unitFloors).forEach(([floorName, items]) => {
-        if (filters.floor !== "all" && filters.floor !== floorName) return;
         items.forEach((item) => {
-          if (filters.status !== "all" && item.status !== filters.status) return;
-          if (filters.trade !== "all" && item.trade !== filters.trade) return;
-          if (filters.priority && filters.priority !== "all" && (item.priority || "Medium") !== filters.priority) return;
-
-          // Date Filter check (strictly enforces date filter)
-          if (
-            !isItemMatchingDateFilter(
-              item.updatedAt,
-              filters.dateFilter,
-              filters.startDate,
-              filters.endDate
-            )
-          ) {
+          if (!isItemMatchingFilters(item, sKey, unitName, floorName, filters)) {
             return;
           }
 

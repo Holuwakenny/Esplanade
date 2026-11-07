@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { SitesMap, WorkItem, FilterState, WorkStatus, WorkPriority } from "../types";
 import { isItemMatchingDateFilter, formatDateDisplay } from "../utils/dateUtils";
+import { isItemMatchingFilters } from "../utils/filterUtils";
 
 // Isolated debounced textarea that prevents global re-renders and memory allocations while typing
 export const DebouncedTextarea: React.FC<{
@@ -464,7 +465,10 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
   // Determine sites to render
   let sitesToRender: string[] = [];
-  if (filters.site === "all") {
+  if (filters.sites && filters.sites.length > 0) {
+    sitesToRender = filters.sites.filter((s) => sitesData[s]);
+    if (sitesToRender.length === 0) sitesToRender = Object.keys(sitesData).sort((a, b) => a.localeCompare(b));
+  } else if (filters.site === "all") {
     sitesToRender = Object.keys(sitesData).sort((a, b) => a.localeCompare(b));
   } else if (sitesData[filters.site]) {
     sitesToRender = [filters.site];
@@ -488,43 +492,14 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
         Object.entries(siteData).forEach(([unitName, unitFloors]) => {
           if (unitName.startsWith("_")) return;
-          if (filters.unit !== "all" && filters.unit !== unitName) return;
 
           Object.entries(unitFloors).forEach(([floorName, items]) => {
-            if (filters.floor !== "all" && filters.floor !== floorName) return;
-
             items.forEach((item, realIndex) => {
               siteTotal++;
               if (item.status === "Completed") siteCompleted++;
 
-              if (filters.status !== "all" && item.status !== filters.status) return;
-              if (filters.trade !== "all" && item.trade !== filters.trade) return;
-              if (filters.priority && filters.priority !== "all" && (item.priority || "Medium") !== filters.priority) return;
-
-              // Date filtering (strictly enforces daily/weekly/monthly/custom filters)
-              if (
-                !isItemMatchingDateFilter(
-                  item.updatedAt,
-                  filters.dateFilter,
-                  filters.startDate,
-                  filters.endDate
-                )
-              ) {
+              if (!isItemMatchingFilters(item, siteName, unitName, floorName, filters)) {
                 return;
-              }
-
-              // Search check
-              if (filters.search) {
-                const q = filters.search.toLowerCase();
-                const matchArea = (item.area || "").toLowerCase().includes(q);
-                const matchWork = (item.work || "").toLowerCase().includes(q);
-                const matchTrade = (item.trade || "").toLowerCase().includes(q);
-                const matchUnit = unitName.toLowerCase().includes(q);
-                const matchFloor = floorName.toLowerCase().includes(q);
-                const matchNotes = (item.notes || "").toLowerCase().includes(q);
-                if (!matchArea && !matchWork && !matchTrade && !matchUnit && !matchFloor && !matchNotes) {
-                  return;
-                }
               }
 
               flatRows.push({

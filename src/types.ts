@@ -86,4 +86,11 @@ export interface FilterState {
   startDate?: string;
   endDate?: string;
   sortBy?: "site" | "priority" | "floor" | "trade" | "status" | "date";
+  // Multi-select support
+  sites?: string[];
+  units?: string[];
+  floors?: string[];
+  statuses?: string[];
+  trades?: string[];
+  priorities?: string[];
 }

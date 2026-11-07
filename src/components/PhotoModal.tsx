@@ -107,14 +107,14 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
   // Compress & resize image to lightweight data URL for high-performance sync & storage
   const compressImage = (imageElement: HTMLImageElement | HTMLVideoElement): string => {
     const canvas = document.createElement("canvas");
-    const maxDim = 640;
+    const maxDim = 500;
 
     let width = imageElement instanceof HTMLVideoElement ? imageElement.videoWidth : imageElement.naturalWidth;
     let height = imageElement instanceof HTMLVideoElement ? imageElement.videoHeight : imageElement.naturalHeight;
 
     if (!width || !height) {
-      width = 640;
-      height = 480;
+      width = 500;
+      height = 375;
     }
 
     if (width > height) {
@@ -132,14 +132,14 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({
     canvas.width = width;
     canvas.height = height;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (ctx) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "medium";
       ctx.drawImage(imageElement, 0, 0, width, height);
     }
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.60);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.52);
     // Explicitly release canvas bitmap memory
     canvas.width = 0;
     canvas.height = 0;

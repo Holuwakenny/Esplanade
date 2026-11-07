@@ -1,5 +1,5 @@
 import React from "react";
-import { Building2, Building, RefreshCw, ChevronDown, WifiOff, CheckCircle2, ListChecks, Sparkles, TrendingUp, Smartphone } from "lucide-react";
+import { Building2, Building, RefreshCw, ChevronDown, WifiOff, CheckCircle2, ListChecks, Sparkles, TrendingUp, Smartphone, Camera } from "lucide-react";
 import { SyncStatus } from "../lib/firebase";
 import { GmhLogo } from "./GmhLogo";
 
@@ -8,10 +8,11 @@ interface HeaderProps {
   allSites: string[];
   isSyncing: boolean;
   syncStatus?: SyncStatus;
-  mainViewTab?: "works" | "plans" | "pace";
+  mainViewTab?: "works" | "plans" | "pace" | "photos";
   pendingPlansCount?: number;
   totalWorksCount?: number;
-  onSelectViewTab?: (tab: "works" | "plans" | "pace") => void;
+  totalPhotosCount?: number;
+  onSelectViewTab?: (tab: "works" | "plans" | "pace" | "photos") => void;
   onSelectSite: (siteName: string) => void;
   onOpenManageSites: () => void;
   onManualSync: () => void;
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   mainViewTab = "works",
   pendingPlansCount = 0,
   totalWorksCount = 0,
+  totalPhotosCount = 0,
   onSelectViewTab,
   onSelectSite,
   onOpenManageSites,
@@ -203,6 +205,28 @@ export const Header: React.FC<HeaderProps> = ({
                 <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300 shrink-0" />
                 <span className="hidden sm:inline">3. Progression Pace</span>
                 <span className="sm:hidden">3. Pace</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectViewTab("photos")}
+                className={`flex-1 sm:flex-none px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer min-h-[40px] ${
+                  mainViewTab === "photos"
+                    ? "bg-[#D4AF37] text-slate-950 shadow-md ring-2 ring-[#D4AF37]/50"
+                    : "bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800"
+                }`}
+                title="View works and tasks with pictures on-screen without printing"
+              >
+                <Camera className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${mainViewTab === "photos" ? "text-slate-950" : "text-[#D4AF37]"}`} />
+                <span className="hidden sm:inline">4. Works with Pictures</span>
+                <span className="sm:hidden">4. Pictures</span>
+                {totalPhotosCount > 0 && (
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black ${
+                    mainViewTab === "photos" ? "bg-slate-900 text-[#D4AF37]" : "bg-[#D4AF37]/20 text-[#D4AF37]"
+                  }`}>
+                    {totalPhotosCount}
+                  </span>
+                )}
               </button>
             </div>
 
