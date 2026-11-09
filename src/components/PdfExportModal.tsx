@@ -49,6 +49,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const targetSiteKeys =
     selectedSiteScope === "all"
       ? Object.keys(sitesData)
+      : filters.sites && filters.sites.length > 0
+      ? filters.sites
       : [activeSiteName && sitesData[activeSiteName] ? activeSiteName : Object.keys(sitesData)[0] || "Default"];
 
   const sitePlansData = targetSiteKeys.map((sKey) => ({
@@ -299,8 +301,12 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                   onChange={(e) => setSelectedSiteScope(e.target.value)}
                   className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-800 text-xs font-semibold focus:outline-none"
                 >
-                  <option value="active">Active Site Only ({activeSiteName})</option>
-                  <option value="all">All Sites & Projects</option>
+                  <option value="active">
+                    {filters.sites && filters.sites.length > 1
+                      ? `Selected Sites Scope (${filters.sites.length} Sites: ${filters.sites.join(", ")})`
+                      : `Active Site Scope (${activeSiteName === "all" ? "All Sites" : activeSiteName})`}
+                  </option>
+                  <option value="all">All Sites & Projects ({Object.keys(sitesData).length} Projects)</option>
                 </select>
               </div>
 

@@ -482,6 +482,29 @@ export const WorkTable: React.FC<WorkTableProps> = ({
 
   return (
     <div className="space-y-8">
+      {sitesToRender.length > 1 && (
+        <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0">
+              <Building className="w-5 h-5 text-indigo-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">
+                  Multiple Sites Active Scope
+                </span>
+                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-[#D4AF37] text-slate-950 shadow-2xs">
+                  {sitesToRender.length} Sites Combined
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Displaying all tasks across: <strong className="text-white">{sitesToRender.join(" · ")}</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {sitesToRender.map((siteName) => {
         const siteData = sitesData[siteName] || {};
 

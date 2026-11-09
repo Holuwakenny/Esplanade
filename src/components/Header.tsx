@@ -77,45 +77,56 @@ export const Header: React.FC<HeaderProps> = ({
   }, [isSiteDropdownOpen]);
 
   // Determine current active multi-selected sites
-  const activeSelectedSites =
-    selectedSites && selectedSites.length > 0
-      ? selectedSites
-      : currentSite !== "all"
-      ? [currentSite]
-      : [];
+  const isAllSitesExplicit = Boolean(selectedSites && selectedSites.length === allSites.length);
+  const isAllSitesImplicit = (!selectedSites || selectedSites.length === 0) && (currentSite === "all" || !allSites.includes(currentSite));
+  const isAllSites = isAllSitesExplicit || isAllSitesImplicit;
 
-  const isAllSites =
-    activeSelectedSites.length === 0 || activeSelectedSites.length === allSites.length;
+  // Active sites list for checkboxes
+  const activeSelectedSites =
+    selectedSites && selectedSites.length > 0 && !isAllSitesExplicit
+      ? selectedSites
+      : currentSite !== "all" && allSites.includes(currentSite) && !isAllSitesImplicit
+      ? [currentSite]
+      : allSites;
 
   const handleToggleSite = (siteName: string) => {
     let next: string[];
-    if (activeSelectedSites.includes(siteName)) {
+    // If all sites were active and user taps a specific site, narrow to just that site
+    if (isAllSites && allSites.length > 1) {
+      next = [siteName];
+    } else if (activeSelectedSites.includes(siteName)) {
       next = activeSelectedSites.filter((s) => s !== siteName);
+      if (next.length === 0) {
+        next = []; // If all unchecked, revert to showing all sites
+      }
     } else {
       next = [...activeSelectedSites, siteName];
+      if (next.length === allSites.length) {
+        next = []; // Normalized to all sites
+      }
     }
+
     if (onSelectSites) {
       onSelectSites(next);
-    }
-    if (next.length === 1) {
-      onSelectSite(next[0]);
-    } else {
-      onSelectSite("all");
+    } else if (onSelectSite) {
+      onSelectSite(next.length === 1 ? next[0] : "all");
     }
   };
 
   const handleSelectAllSites = () => {
     if (onSelectSites) {
       onSelectSites([]);
+    } else if (onSelectSite) {
+      onSelectSite("all");
     }
-    onSelectSite("all");
   };
 
   const handleClearSites = () => {
     if (onSelectSites) {
       onSelectSites([]);
+    } else if (onSelectSite) {
+      onSelectSite("all");
     }
-    onSelectSite("all");
   };
 
   const filteredSites = siteSearchQuery.trim()

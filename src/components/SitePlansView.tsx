@@ -66,13 +66,20 @@ export const SitePlansView: React.FC<SitePlansViewProps> = ({
   const [newMonthlyText, setNewMonthlyText] = useState("");
   const [newMonthlyTarget, setNewMonthlyTarget] = useState("");
 
-  const plans = getSitePlans(sitesData, currentSite);
+  const effectiveSite =
+    currentSite && currentSite !== "all" && sitesData[currentSite]
+      ? currentSite
+      : allSitesList.length > 0
+      ? allSitesList[0]
+      : Object.keys(sitesData)[0] || "Esplanade 6";
+
+  const plans = getSitePlans(sitesData, effectiveSite);
   const counts = countPendingPlans(plans);
 
   // Helper to persist plan updates
   const handleUpdatePlans = (updatedPlans: SitePlans) => {
-    const updatedSites = updateSitePlans(sitesData, currentSite, updatedPlans);
-    onPersist(updatedSites, currentSite);
+    const updatedSites = updateSitePlans(sitesData, effectiveSite, updatedPlans);
+    onPersist(updatedSites, effectiveSite);
   };
 
   // Add Item Handler
@@ -208,7 +215,7 @@ export const SitePlansView: React.FC<SitePlansViewProps> = ({
             <span>Site Execution & Action Planning</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <span>{currentSite}</span>
+            <span>{effectiveSite}</span>
             <span className="text-slate-400 font-normal">|</span>
             <span className="text-slate-600 text-lg font-semibold">Action Plans & Issues</span>
           </h2>
@@ -220,7 +227,7 @@ export const SitePlansView: React.FC<SitePlansViewProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto print:hidden">
           {/* Site Picker */}
           <select
-            value={currentSite}
+            value={effectiveSite}
             onChange={(e) => onSelectSite(e.target.value)}
             className="px-3 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
@@ -1135,7 +1142,7 @@ export const SitePlansView: React.FC<SitePlansViewProps> = ({
               SITE ACTION PLANS & ISSUES REPORT
             </h2>
             <p className="text-sm font-semibold text-black mt-1">
-              Project Site: <strong className="underline">{currentSite}</strong> · Report Date: <strong>{new Date().toLocaleDateString()}</strong>
+              Project Site: <strong className="underline">{effectiveSite}</strong> · Report Date: <strong>{new Date().toLocaleDateString()}</strong>
             </p>
           </div>
           <div className="text-right text-xs text-black font-semibold">
@@ -1144,7 +1151,7 @@ export const SitePlansView: React.FC<SitePlansViewProps> = ({
           </div>
         </div>
 
-        <SitePlansReportSection sitePlansData={[{ siteName: currentSite, plans }]} />
+        <SitePlansReportSection sitePlansData={[{ siteName: effectiveSite, plans }]} />
 
         <div className="pt-8 border-t-2 border-black grid grid-cols-3 gap-6 text-xs text-black font-bold break-inside-avoid">
           <div>

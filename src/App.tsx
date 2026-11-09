@@ -569,15 +569,18 @@ export default function App() {
       if (field === "site") {
         if (value === "all") {
           setCurrentSite("all");
+          updated.sites = [];
         } else if (sitesData[value]) {
           setCurrentSite(value);
+          updated.sites = [value];
         }
       } else if (field === "sites") {
         const arr = (value as string[]) || [];
+        updated.sites = arr;
         if (arr.length === 1 && sitesData[arr[0]]) {
           setCurrentSite(arr[0]);
           updated.site = arr[0];
-        } else if (arr.length === 0) {
+        } else {
           setCurrentSite("all");
           updated.site = "all";
         }
@@ -1107,7 +1110,9 @@ export default function App() {
   const allSitesList = Object.keys(sitesData).length > 0 ? Object.keys(sitesData) : [currentSite];
 
   const sitesToInspect =
-    filters.site === "all"
+    filters.sites && filters.sites.length > 0
+      ? filters.sites.map((s) => sitesData[s]).filter(Boolean)
+      : filters.site === "all"
       ? Object.values(sitesData)
       : [sitesData[filters.site] || sitesData[currentSite] || {}];
 
@@ -1216,16 +1221,6 @@ export default function App() {
         onSelectSite={handleSelectSite}
         onSelectSites={(selectedSites) => {
           handleFilterChange("sites", selectedSites);
-          if (selectedSites.length === 1) {
-            handleFilterChange("site", selectedSites[0]);
-            setCurrentSite(selectedSites[0]);
-          } else if (selectedSites.length === 0) {
-            handleFilterChange("site", "all");
-            setCurrentSite("all");
-          } else {
-            handleFilterChange("site", "all");
-            setCurrentSite("all");
-          }
         }}
         onOpenManageSites={() => setIsManageSitesModalOpen(true)}
         onManualSync={handleManualSync}
