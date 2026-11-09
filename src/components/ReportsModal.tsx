@@ -1,5 +1,19 @@
 import React, { useState, useRef } from "react";
-import { X, Calendar, FileText, Printer, Clock, Building, PieChart, Download, Image as ImageIcon, Sparkles, Info } from "lucide-react";
+import {
+  X,
+  Calendar,
+  FileText,
+  Printer,
+  Clock,
+  Building,
+  PieChart,
+  Download,
+  Image as ImageIcon,
+  Sparkles,
+  Info,
+  SlidersHorizontal,
+  ChevronDown,
+} from "lucide-react";
 import { SitesMap, WorkItem } from "../types";
 import { getSitePlans } from "../lib/plansUtils";
 import { SitePlansReportSection } from "./SitePlansReportSection";
@@ -36,6 +50,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   const [sortBy, setSortBy] = useState<"site" | "priority" | "floor" | "trade">("site");
   const [groupBySite, setGroupBySite] = useState<boolean>(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+  const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState<boolean>(false);
   const reportPrintRef = useRef<HTMLDivElement>(null);
   const reportCaptureWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -335,8 +350,8 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs touch-pan-y print:p-0 print:bg-white print:static">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden animate-in fade-in duration-150 max-h-[88dvh] sm:max-h-[85vh] flex flex-col my-auto print:shadow-none print:border-none print:max-h-none print:w-full">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs touch-pan-y print:p-0 print:bg-white print:static">
+      <div className="bg-white sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-4xl overflow-hidden animate-in fade-in duration-150 h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[88vh] flex flex-col my-auto print:shadow-none print:border-none print:max-h-none print:h-auto print:w-full">
         {/* Header - Hidden in Print */}
         <div className="bg-slate-900 text-white px-5 py-3.5 sm:py-4 flex items-center justify-between shrink-0 border-b border-slate-800 print:hidden">
           <div className="flex items-center gap-2.5">
@@ -384,8 +399,28 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
           </div>
         </div>
 
-        {/* Multi-Site Selector Chips Bar */}
-        <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 print:hidden">
+        {/* Mobile Accordion Toggle for Filter & Options */}
+        <div className="sm:hidden bg-slate-100 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-800 shrink-0 print:hidden">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span className="truncate">
+              {reportPeriod.toUpperCase()} REPORT · {selectedSites.length === siteNames.length ? "All Active Sites" : `${selectedSites.length} Sites`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileOptionsOpen((prev) => !prev)}
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-indigo-600 font-bold text-xs flex items-center gap-1 shrink-0 shadow-2xs active:bg-indigo-50 cursor-pointer"
+          >
+            <span>{isMobileOptionsOpen ? "Hide Options" : "Filter Options"}</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isMobileOptionsOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+
+        {/* Options & Filters Container: Collapsible on mobile, always visible on desktop */}
+        <div className={`${isMobileOptionsOpen ? "block max-h-72 overflow-y-auto overscroll-contain" : "hidden"} sm:block sm:max-h-none shrink-0 print:hidden border-b border-slate-200`}>
+          {/* Multi-Site Selector Chips Bar */}
+          <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 print:hidden">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
               <Building className="w-3.5 h-3.5 text-indigo-600" />
@@ -581,9 +616,10 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
             </label>
           </div>
         </div>
+      </div>
 
         {/* Printable Report Content Body */}
-        <div id="printable-report-doc" className="p-4 sm:p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 touch-pan-y space-y-6 text-xs sm:text-sm print:p-0 print:overflow-visible">
+        <div id="printable-report-doc" className="p-3 sm:p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 touch-pan-y space-y-6 text-xs sm:text-sm print:p-0 print:overflow-visible">
           {/* Printable Report Title Header */}
           <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
             <div>

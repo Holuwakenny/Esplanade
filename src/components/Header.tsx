@@ -166,13 +166,13 @@ export const Header: React.FC<HeaderProps> = ({
 
                   {/* Multi-Select Dropdown Popover */}
                   {isSiteDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="absolute top-full left-0 mt-2 w-80 max-w-[calc(100vw-24px)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
                       {/* Header with Quick Actions */}
                       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs gap-2">
                         <div className="flex items-center gap-1.5">
                           <Building className="w-3.5 h-3.5 text-[#D4AF37]" />
                           <span className="font-extrabold text-slate-200 uppercase tracking-wider text-[11px]">
-                            Filter Sites (Multi-Select)
+                            Multi-Filter Sites ({activeSelectedSites.length === 0 ? allSites.length : activeSelectedSites.length}/{allSites.length})
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
@@ -181,7 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
                             onClick={handleSelectAllSites}
                             className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer transition-colors"
                           >
-                            All
+                            Select All
                           </button>
                           <span className="text-slate-600">|</span>
                           <button
@@ -189,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
                             onClick={handleClearSites}
                             className="text-slate-400 hover:text-rose-400 font-semibold cursor-pointer transition-colors"
                           >
-                            Clear
+                            Reset
                           </button>
                         </div>
                       </div>
@@ -219,7 +219,34 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
 
                       {/* Sites Checklist */}
-                      <div className="max-h-56 overflow-y-auto overscroll-contain space-y-1 pr-1 custom-scrollbar">
+                      <div className="max-h-60 overflow-y-auto overscroll-contain space-y-1 pr-1 custom-scrollbar">
+                        {/* 1. All Sites (All Active Projects) Option */}
+                        <div
+                          onClick={handleSelectAllSites}
+                          className={`flex items-center justify-between gap-2 px-2.5 py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer select-none transition-colors border border-slate-800 mb-1.5 min-h-[42px] ${
+                            isAllSites
+                              ? "bg-indigo-950/70 text-indigo-200 font-bold border-indigo-500/40"
+                              : "text-slate-300 hover:bg-slate-800/80"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <div
+                              className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
+                                isAllSites
+                                  ? "bg-[#D4AF37] border-[#D4AF37] text-slate-950 font-black"
+                                  : "border-slate-600 bg-slate-800"
+                              }`}
+                            >
+                              {isAllSites && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <span className="truncate">All Sites (All Active Projects)</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
+                            {allSites.length}
+                          </span>
+                        </div>
+
+                        {/* 2. Individual Sites with Checkboxes */}
                         {filteredSites.length === 0 ? (
                           <div className="py-3 text-center text-xs text-slate-500 italic">
                             No matching sites found
@@ -228,10 +255,10 @@ export const Header: React.FC<HeaderProps> = ({
                           filteredSites.map((site) => {
                             const isChecked = activeSelectedSites.includes(site);
                             return (
-                              <label
+                              <div
                                 key={site}
                                 onClick={() => handleToggleSite(site)}
-                                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-xs sm:text-sm cursor-pointer select-none transition-colors ${
+                                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-xs sm:text-sm cursor-pointer select-none transition-colors min-h-[40px] ${
                                   isChecked
                                     ? "bg-slate-800 text-white font-bold border-l-2 border-[#D4AF37]"
                                     : "text-slate-300 hover:bg-slate-800/60"
@@ -249,32 +276,40 @@ export const Header: React.FC<HeaderProps> = ({
                                   </div>
                                   <span className="truncate">{site}</span>
                                 </div>
-                              </label>
+                              </div>
                             );
                           })
                         )}
+
+                        {/* 3. + Add / Manage Sites... Action */}
+                        <div className="pt-1.5 mt-1 border-t border-slate-800/80">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsSiteDropdownOpen(false);
+                              onOpenManageSites();
+                            }}
+                            className="w-full text-left py-2 px-2.5 rounded-xl text-xs sm:text-sm text-indigo-400 hover:text-indigo-300 hover:bg-slate-800/80 flex items-center gap-2 font-semibold cursor-pointer transition-colors active:bg-slate-700 min-h-[42px]"
+                          >
+                            <PlusCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+                            <span>+ Add / Manage Sites...</span>
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Footer Controls: Manage Sites Shortcut & Done */}
-                      <div className="pt-2.5 mt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsSiteDropdownOpen(false);
-                            onOpenManageSites();
-                          }}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold cursor-pointer transition-colors"
-                        >
-                          <PlusCircle className="w-3.5 h-3.5" />
-                          <span>Manage Sites</span>
-                        </button>
-
+                      {/* Footer Actions: Done */}
+                      <div className="pt-2 mt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-400 truncate">
+                          {isAllSites
+                            ? "Showing all active projects"
+                            : `${activeSelectedSites.length} of ${allSites.length} selected`}
+                        </span>
                         <button
                           type="button"
                           onClick={() => setIsSiteDropdownOpen(false)}
-                          className="px-3.5 py-1 bg-[#D4AF37] hover:bg-[#c49f2e] text-slate-950 text-xs font-black rounded-lg cursor-pointer transition-colors shadow-sm"
+                          className="px-3.5 py-1.5 bg-[#D4AF37] hover:bg-[#c49f2e] text-slate-950 text-xs font-black rounded-lg cursor-pointer transition-colors shadow-sm"
                         >
-                          Done
+                          Apply & Done
                         </button>
                       </div>
                     </div>

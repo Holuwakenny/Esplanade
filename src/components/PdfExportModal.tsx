@@ -230,8 +230,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-3 bg-slate-900/60 backdrop-blur-xs touch-pan-y">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[88dvh] sm:max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-0 sm:p-3 bg-slate-900/60 backdrop-blur-xs touch-pan-y">
+      <div className="bg-white sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-xl h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden animate-in fade-in duration-150">
         {/* Header */}
         <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
