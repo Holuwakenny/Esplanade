@@ -406,7 +406,13 @@ export default function App() {
   const handleSelectSite = (siteName: string) => {
     if (siteName === "all" || sitesData[siteName]) {
       setCurrentSite(siteName);
-      setFilters((prev) => ({ ...prev, site: siteName, unit: "all", floor: "all" }));
+      setFilters((prev) => ({
+        ...prev,
+        site: siteName,
+        sites: siteName === "all" ? [] : [siteName],
+        unit: "all",
+        floor: "all",
+      }));
     }
   };
 
@@ -1192,6 +1198,13 @@ export default function App() {
       {/* Brand & Site Header */}
       <Header
         currentSite={currentSite}
+        selectedSites={
+          filters.sites && filters.sites.length > 0
+            ? filters.sites
+            : filters.site !== "all"
+            ? [filters.site]
+            : []
+        }
         allSites={allSitesList}
         isSyncing={isSyncing}
         syncStatus={syncStatus}
@@ -1201,6 +1214,19 @@ export default function App() {
         totalPhotosCount={totalPhotosCount}
         onSelectViewTab={setMainViewTab}
         onSelectSite={handleSelectSite}
+        onSelectSites={(selectedSites) => {
+          handleFilterChange("sites", selectedSites);
+          if (selectedSites.length === 1) {
+            handleFilterChange("site", selectedSites[0]);
+            setCurrentSite(selectedSites[0]);
+          } else if (selectedSites.length === 0) {
+            handleFilterChange("site", "all");
+            setCurrentSite("all");
+          } else {
+            handleFilterChange("site", "all");
+            setCurrentSite("all");
+          }
+        }}
         onOpenManageSites={() => setIsManageSitesModalOpen(true)}
         onManualSync={handleManualSync}
         onOpenMobileInstall={() => setIsMobileInstallModalOpen(true)}
@@ -1292,9 +1318,15 @@ export default function App() {
           </div>
 
           <div className="text-xs text-slate-500 font-medium hidden md:flex items-center gap-2">
-            <span>Site Selected:</span>
+            <span>Site Filter:</span>
             <span className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg font-bold border border-slate-200">
-              {currentSite}
+              {filters.sites && filters.sites.length > 0
+                ? filters.sites.length === 1
+                  ? filters.sites[0]
+                  : `${filters.sites.length} Sites (${filters.sites.join(", ")})`
+                : currentSite === "all"
+                ? "All Sites (All Projects)"
+                : currentSite}
             </span>
           </div>
         </div>

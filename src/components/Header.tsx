@@ -1,10 +1,27 @@
-import React from "react";
-import { Building2, Building, RefreshCw, ChevronDown, WifiOff, CheckCircle2, ListChecks, Sparkles, TrendingUp, Smartphone, Camera } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Building2,
+  Building,
+  RefreshCw,
+  ChevronDown,
+  WifiOff,
+  CheckCircle2,
+  ListChecks,
+  Sparkles,
+  TrendingUp,
+  Smartphone,
+  Camera,
+  Check,
+  X,
+  Search,
+  PlusCircle,
+} from "lucide-react";
 import { SyncStatus } from "../lib/firebase";
 import { GmhLogo } from "./GmhLogo";
 
 interface HeaderProps {
   currentSite: string;
+  selectedSites?: string[];
   allSites: string[];
   isSyncing: boolean;
   syncStatus?: SyncStatus;
@@ -14,6 +31,7 @@ interface HeaderProps {
   totalPhotosCount?: number;
   onSelectViewTab?: (tab: "works" | "plans" | "pace" | "photos") => void;
   onSelectSite: (siteName: string) => void;
+  onSelectSites?: (sites: string[]) => void;
   onOpenManageSites: () => void;
   onManualSync: () => void;
   onOpenMobileInstall?: () => void;
@@ -21,6 +39,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   currentSite,
+  selectedSites = [],
   allSites,
   isSyncing,
   syncStatus,
@@ -30,12 +49,78 @@ export const Header: React.FC<HeaderProps> = ({
   totalPhotosCount = 0,
   onSelectViewTab,
   onSelectSite,
+  onSelectSites,
   onOpenManageSites,
   onManualSync,
   onOpenMobileInstall,
 }) => {
   const isOnline = syncStatus ? syncStatus.isOnline : true;
   const hasPending = syncStatus ? syncStatus.hasPendingSync : false;
+
+  const [isSiteDropdownOpen, setIsSiteDropdownOpen] = useState(false);
+  const [siteSearchQuery, setSiteSearchQuery] = useState("");
+  const siteDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (siteDropdownRef.current && !siteDropdownRef.current.contains(event.target as Node)) {
+        setIsSiteDropdownOpen(false);
+      }
+    };
+    if (isSiteDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isSiteDropdownOpen]);
+
+  // Determine current active multi-selected sites
+  const activeSelectedSites =
+    selectedSites && selectedSites.length > 0
+      ? selectedSites
+      : currentSite !== "all"
+      ? [currentSite]
+      : [];
+
+  const isAllSites =
+    activeSelectedSites.length === 0 || activeSelectedSites.length === allSites.length;
+
+  const handleToggleSite = (siteName: string) => {
+    let next: string[];
+    if (activeSelectedSites.includes(siteName)) {
+      next = activeSelectedSites.filter((s) => s !== siteName);
+    } else {
+      next = [...activeSelectedSites, siteName];
+    }
+    if (onSelectSites) {
+      onSelectSites(next);
+    }
+    if (next.length === 1) {
+      onSelectSite(next[0]);
+    } else {
+      onSelectSite("all");
+    }
+  };
+
+  const handleSelectAllSites = () => {
+    if (onSelectSites) {
+      onSelectSites([]);
+    }
+    onSelectSite("all");
+  };
+
+  const handleClearSites = () => {
+    if (onSelectSites) {
+      onSelectSites([]);
+    }
+    onSelectSite("all");
+  };
+
+  const filteredSites = siteSearchQuery.trim()
+    ? allSites.filter((s) => s.toLowerCase().includes(siteSearchQuery.toLowerCase().trim()))
+    : allSites;
 
   return (
     <header className="bg-slate-900 text-white shadow-md sticky top-0 z-20 transition-all border-b border-slate-800">
@@ -50,32 +135,150 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                {/* Site Selector Dropdown */}
-                <div className="relative inline-flex items-center group max-w-full">
-                  <select
-                    value={currentSite}
-                    onChange={(e) => {
-                      if (e.target.value === "ADD_NEW_SITE") {
-                        onOpenManageSites();
-                      } else {
-                        onSelectSite(e.target.value);
-                      }
-                    }}
-                    className="bg-slate-800 hover:bg-slate-700/80 text-white font-bold text-sm sm:text-2xl pr-7 sm:pr-8 pl-2.5 sm:pl-3 py-1 rounded-lg border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer transition-colors max-w-[160px] xs:max-w-[220px] sm:max-w-none truncate"
+                {/* Multi-Select Top Site Filter */}
+                <div className="relative inline-flex items-center max-w-full" ref={siteDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSiteDropdownOpen((prev) => !prev)}
+                    className="bg-slate-800 hover:bg-slate-700/90 text-white font-bold text-sm sm:text-lg md:text-xl pr-8 pl-3 py-1 sm:py-1.5 rounded-xl border border-slate-700 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/60 cursor-pointer transition-all max-w-[210px] xs:max-w-[280px] sm:max-w-none truncate flex items-center gap-2 group shadow-sm text-left"
+                    title="Filter by one or multiple construction sites"
                   >
-                    <option value="all" className="bg-slate-900 text-indigo-300 font-bold text-base">
-                      All Sites (All Active Projects)
-                    </option>
-                    {allSites.map((site) => (
-                      <option key={site} value={site} className="bg-slate-900 text-white font-normal text-base">
-                        {site}
-                      </option>
-                    ))}
-                    <option value="ADD_NEW_SITE" className="bg-slate-900 text-indigo-400 font-semibold text-base">
-                      + Add / Manage Sites...
-                    </option>
-                  </select>
-                  <ChevronDown className="w-4 sm:w-5 h-4 sm:h-5 text-slate-400 absolute right-2 pointer-events-none group-hover:text-white transition-colors" />
+                    <span className="truncate">
+                      {isAllSites
+                        ? `All Sites (${allSites.length} Projects)`
+                        : activeSelectedSites.length === 1
+                        ? activeSelectedSites[0]
+                        : `${activeSelectedSites.length} Sites Selected`}
+                    </span>
+
+                    {activeSelectedSites.length > 1 && !isAllSites && (
+                      <span className="text-[10px] sm:text-xs font-black px-1.5 sm:px-2 py-0.5 rounded-full bg-[#D4AF37] text-slate-950 shrink-0">
+                        {activeSelectedSites.length}
+                      </span>
+                    )}
+
+                    <ChevronDown
+                      className={`w-4 sm:w-5 h-4 sm:h-5 text-slate-400 absolute right-2 pointer-events-none transition-transform duration-200 group-hover:text-white ${
+                        isSiteDropdownOpen ? "rotate-180 text-[#D4AF37]" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Multi-Select Dropdown Popover */}
+                  {isSiteDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      {/* Header with Quick Actions */}
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          <span className="font-extrabold text-slate-200 uppercase tracking-wider text-[11px]">
+                            Filter Sites (Multi-Select)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllSites}
+                            className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer transition-colors"
+                          >
+                            All
+                          </button>
+                          <span className="text-slate-600">|</span>
+                          <button
+                            type="button"
+                            onClick={handleClearSites}
+                            className="text-slate-400 hover:text-rose-400 font-semibold cursor-pointer transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick Search if more than 3 sites */}
+                      {allSites.length > 3 && (
+                        <div className="relative mb-2">
+                          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                          <input
+                            type="text"
+                            value={siteSearchQuery}
+                            onChange={(e) => setSiteSearchQuery(e.target.value)}
+                            placeholder="Search sites..."
+                            className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-800/90 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                            autoFocus
+                          />
+                          {siteSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setSiteSearchQuery("")}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Sites Checklist */}
+                      <div className="max-h-56 overflow-y-auto overscroll-contain space-y-1 pr-1 custom-scrollbar">
+                        {filteredSites.length === 0 ? (
+                          <div className="py-3 text-center text-xs text-slate-500 italic">
+                            No matching sites found
+                          </div>
+                        ) : (
+                          filteredSites.map((site) => {
+                            const isChecked = activeSelectedSites.includes(site);
+                            return (
+                              <label
+                                key={site}
+                                onClick={() => handleToggleSite(site)}
+                                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-xs sm:text-sm cursor-pointer select-none transition-colors ${
+                                  isChecked
+                                    ? "bg-slate-800 text-white font-bold border-l-2 border-[#D4AF37]"
+                                    : "text-slate-300 hover:bg-slate-800/60"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 truncate">
+                                  <div
+                                    className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
+                                      isChecked
+                                        ? "bg-[#D4AF37] border-[#D4AF37] text-slate-950 font-black"
+                                        : "border-slate-600 bg-slate-800"
+                                    }`}
+                                  >
+                                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate">{site}</span>
+                                </div>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Footer Controls: Manage Sites Shortcut & Done */}
+                      <div className="pt-2.5 mt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSiteDropdownOpen(false);
+                            onOpenManageSites();
+                          }}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold cursor-pointer transition-colors"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>Manage Sites</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsSiteDropdownOpen(false)}
+                          className="px-3.5 py-1 bg-[#D4AF37] hover:bg-[#c49f2e] text-slate-950 text-xs font-black rounded-lg cursor-pointer transition-colors shadow-sm"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 whitespace-nowrap hidden xs:inline-block">
@@ -231,7 +434,16 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400 font-medium">
-              <span>Current Site: <strong className="text-white">{currentSite}</strong></span>
+              <span>
+                Site Scope:{" "}
+                <strong className="text-white">
+                  {isAllSites
+                    ? "All Sites"
+                    : activeSelectedSites.length === 1
+                    ? activeSelectedSites[0]
+                    : `${activeSelectedSites.length} Sites (${activeSelectedSites.join(", ")})`}
+                </strong>
+              </span>
             </div>
           </div>
         </div>
