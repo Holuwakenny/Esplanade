@@ -1,20 +1,37 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  collection,
+  onSnapshot,
+  writeBatch,
+  getDocs,
+  DocumentData,
+} from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
-import { SitesMap } from "../types";
+import { SitesMap, WorkItem, SiteTrackerData } from "../types";
 import { saveSitesToIndexedDB, loadSitesFromIndexedDB } from "./indexedDbCache";
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 const DOCUMENT_ID = "sites_tracker";
+const SITES_COLLECTION = "sites_data";
 const CACHE_KEY = "sites_tracker_cached_data";
 const QUEUE_KEY = "sites_tracker_pending_queue";
+
+// Cross-tab and cross-window sync channel
+const syncChannel =
+  typeof window !== "undefined" && "BroadcastChannel" in window
+    ? new BroadcastChannel("esplanade_sites_sync")
+    : null;
 
 export interface SyncStatus {
   isOnline: boolean;
   hasPendingSync: boolean;
   isSyncing: boolean;
+  lastSyncedAt?: string;
 }
 
 type SyncStatusListener = (status: SyncStatus) => void;
@@ -39,6 +56,11 @@ export function subscribeSyncStatus(listener: SyncStatusListener) {
   };
 }
 
+// Sanitize site name to safe Firestore document ID
+export function encodeSiteDocId(siteName: string): string {
+  return encodeURIComponent(siteName.trim().replace(/\//g, "_")).replace(/%/g, "_");
+}
+
 // Create lightweight metadata copy without deep JSON cloning
 function createLightweightStorageCopy(sitesData: SitesMap): SitesMap {
   const result: SitesMap = {};
@@ -56,8 +78,8 @@ function createLightweightStorageCopy(sitesData: SitesMap): SitesMap {
         if (!Array.isArray(items)) continue;
         unitObj[floorKey] = items.map((item: any) => {
           if (item && Array.isArray(item.photos) && item.photos.length > 0) {
-            // Keep at most 1 preview photo for lightweight storage/cloud fallback
-            return { ...item, photos: item.photos.slice(0, 1) };
+            // Keep at most 2 preview photos for lightweight cloud index
+            return { ...item, photos: item.photos.slice(0, 2) };
           }
           return item;
         });
@@ -76,7 +98,7 @@ export function prepareFirestorePayload(sitesData: SitesMap): string {
     if (raw.length < 800000) {
       return raw;
     }
-    console.info("[Firestore] Document exceeds 800KB. Optimizing payload for cloud sync...");
+    console.info("[Firestore] Document exceeds 800KB. Optimizing payload for cloud index...");
     const lightweight = createLightweightStorageCopy(sitesData);
     return JSON.stringify(lightweight);
   } catch (err) {
@@ -129,7 +151,7 @@ export function saveToLocalCache(sitesData: SitesMap, immediate: boolean = false
     if (pendingSitesData) {
       executeLocalSave(pendingSitesData);
     }
-  }, 350);
+  }, 250);
 }
 
 // Load cached data from IndexedDB or LocalStorage
@@ -152,7 +174,32 @@ export function getCachedSitesData(): SitesMap | null {
   return null;
 }
 
-// Merge remote (cloud) and local (cache) maps so user additions are never lost
+// Helper: merge photo arrays without duplicates
+function mergePhotos(remotePhotos?: string[], localPhotos?: string[]): string[] {
+  const r = Array.isArray(remotePhotos) ? remotePhotos : [];
+  const l = Array.isArray(localPhotos) ? localPhotos : [];
+  if (r.length === 0) return l;
+  if (l.length === 0) return r;
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  // Prioritize remote first, then append any unique local photos
+  for (const p of r) {
+    if (p && !seen.has(p)) {
+      seen.add(p);
+      result.push(p);
+    }
+  }
+  for (const p of l) {
+    if (p && !seen.has(p)) {
+      seen.add(p);
+      result.push(p);
+    }
+  }
+  return result;
+}
+
+// Merge remote (cloud) and local (cache) maps so user additions and photos are never lost
 export function mergeSitesMaps(remote: SitesMap | null | undefined, local: SitesMap | null | undefined): SitesMap {
   if (!remote || Object.keys(remote).length === 0) return local || {};
   if (!local || Object.keys(local).length === 0) return remote || {};
@@ -206,11 +253,11 @@ export function mergeSitesMaps(remote: SitesMap | null | undefined, local: Sites
           } else {
             const remoteTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
             const localTime = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
-            if (localTime >= remoteTime) {
-              const combinedPhotos = (item.photos && item.photos.length > 0) ? item.photos : (existing.photos || []);
+            const combinedPhotos = mergePhotos(existing.photos, item.photos);
+
+            if (localTime > remoteTime) {
               itemMap.set(key, { ...item, photos: combinedPhotos });
             } else {
-              const combinedPhotos = (existing.photos && existing.photos.length > 0) ? existing.photos : (item.photos || []);
               itemMap.set(key, { ...existing, photos: combinedPhotos });
             }
           }
@@ -271,14 +318,29 @@ export async function flushOfflineQueue(): Promise<boolean> {
 
   try {
     const parsedData = JSON.parse(pending) as SitesMap;
+    const nowIso = new Date().toISOString();
+
+    // 1. Sync per-site documents
+    for (const [siteName, siteData] of Object.entries(parsedData)) {
+      if (!siteName || !siteData) continue;
+      const siteDocRef = doc(db, SITES_COLLECTION, encodeSiteDocId(siteName));
+      await setDoc(siteDocRef, {
+        siteName,
+        updatedAt: nowIso,
+        data: JSON.stringify(siteData),
+      }, { merge: true });
+    }
+
+    // 2. Sync global tracker document
     const docRef = doc(db, "trackers", DOCUMENT_ID);
     await setDoc(docRef, {
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
       sites: prepareFirestorePayload(parsedData),
+      siteNames: Object.keys(parsedData),
     }, { merge: true });
 
     localStorage.removeItem(QUEUE_KEY);
-    updateStatus({ hasPendingSync: false, isSyncing: false, isOnline: true });
+    updateStatus({ hasPendingSync: false, isSyncing: false, isOnline: true, lastSyncedAt: nowIso });
     console.log("[OfflineSync] Flushed offline queue successfully to Firestore");
     return true;
   } catch (err) {
@@ -292,6 +354,15 @@ export async function flushOfflineQueue(): Promise<boolean> {
 export async function syncToFirestore(sitesData: SitesMap): Promise<boolean> {
   // Always cache locally first
   saveToLocalCache(sitesData);
+
+  // Broadcast to other open tabs on this device immediately
+  if (syncChannel) {
+    try {
+      syncChannel.postMessage({ type: "LOCAL_UPDATE", data: sitesData });
+    } catch (e) {
+      // Ignore broadcast errors
+    }
+  }
 
   // Check connectivity
   if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -308,15 +379,47 @@ export async function syncToFirestore(sitesData: SitesMap): Promise<boolean> {
   // Attempt online sync
   try {
     updateStatus({ isSyncing: true });
-    const docRef = doc(db, "trackers", DOCUMENT_ID);
-    await setDoc(docRef, {
-      updatedAt: new Date().toISOString(),
-      sites: prepareFirestorePayload(sitesData),
-    }, { merge: true });
+    const nowIso = new Date().toISOString();
+
+    // 1. Save each site in its own document in sites_data collection
+    // This completely bypasses Firestore's 1MB single-document constraint!
+    for (const [siteName, siteData] of Object.entries(sitesData)) {
+      if (!siteName || !siteData) continue;
+      try {
+        const siteDocRef = doc(db, SITES_COLLECTION, encodeSiteDocId(siteName));
+        await setDoc(
+          siteDocRef,
+          {
+            siteName,
+            updatedAt: nowIso,
+            data: JSON.stringify(siteData),
+          },
+          { merge: true }
+        );
+      } catch (siteErr) {
+        console.warn(`[Firestore] Error syncing site "${siteName}":`, siteErr);
+      }
+    }
+
+    // 2. Also update root index document for backward compatibility
+    try {
+      const docRef = doc(db, "trackers", DOCUMENT_ID);
+      await setDoc(
+        docRef,
+        {
+          updatedAt: nowIso,
+          sites: prepareFirestorePayload(sitesData),
+          siteNames: Object.keys(sitesData),
+        },
+        { merge: true }
+      );
+    } catch (rootErr) {
+      console.warn("[Firestore] Root index sync warning:", rootErr);
+    }
 
     // Clear queue if present
     localStorage.removeItem(QUEUE_KEY);
-    updateStatus({ isOnline: true, hasPendingSync: false, isSyncing: false });
+    updateStatus({ isOnline: true, hasPendingSync: false, isSyncing: false, lastSyncedAt: nowIso });
     console.log("[Firestore] Successfully synced multi-site data to cloud database");
     return true;
   } catch (error) {
@@ -331,14 +434,66 @@ export async function syncToFirestore(sitesData: SitesMap): Promise<boolean> {
   }
 }
 
-// Subscribe to real-time updates from Firestore
+// Subscribe to real-time updates from Firestore across all devices
 export function subscribeToFirestore(onSitesUpdate: (sites: SitesMap) => void) {
+  const unsubscribers: (() => void)[] = [];
+
+  // Listen for broadcast messages from other tabs
+  if (syncChannel) {
+    const handleBroadcast = (event: MessageEvent) => {
+      if (event.data && event.data.type === "LOCAL_UPDATE" && event.data.data) {
+        onSitesUpdate(event.data.data);
+      }
+    };
+    syncChannel.addEventListener("message", handleBroadcast);
+    unsubscribers.push(() => {
+      syncChannel.removeEventListener("message", handleBroadcast);
+    });
+  }
+
   try {
+    // 1. Primary real-time listener: Listen to the entire sites_data collection
+    // Whenever mobile or desktop adds/modifies any site, this fires immediately!
+    const sitesColRef = collection(db, SITES_COLLECTION);
+    const unsubCol = onSnapshot(
+      sitesColRef,
+      (querySnapshot) => {
+        if (querySnapshot.metadata.hasPendingWrites) {
+          return;
+        }
+
+        if (!querySnapshot.empty) {
+          const remoteMap: SitesMap = {};
+          querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data && data.siteName && data.data) {
+              try {
+                const parsedSiteData = JSON.parse(data.data);
+                remoteMap[data.siteName] = parsedSiteData;
+              } catch (e) {
+                console.warn(`[Firestore] Failed to parse site data for ${data.siteName}:`, e);
+              }
+            }
+          });
+
+          if (Object.keys(remoteMap).length > 0) {
+            saveToLocalCache(remoteMap);
+            onSitesUpdate(remoteMap);
+            updateStatus({ isOnline: true, hasPendingSync: false });
+          }
+        }
+      },
+      (err) => {
+        console.warn("[Firestore] sites_data collection subscription warning:", err);
+      }
+    );
+    unsubscribers.push(unsubCol);
+
+    // 2. Secondary fallback listener: Listen to trackers/sites_tracker for legacy compatibility
     const docRef = doc(db, "trackers", DOCUMENT_ID);
-    return onSnapshot(
+    const unsubDoc = onSnapshot(
       docRef,
       (docSnap) => {
-        // Ignore local pending writes echo because local state is already updated locally
         if (docSnap.metadata.hasPendingWrites) {
           return;
         }
@@ -352,19 +507,23 @@ export function subscribeToFirestore(onSitesUpdate: (sites: SitesMap) => void) {
                 onSitesUpdate(remote);
               }
             } catch (e) {
-              console.error("Failed to parse Firestore snapshot sites data", e);
+              console.warn("Failed to parse Firestore snapshot sites data", e);
             }
           }
         }
       },
       (err) => {
-        console.warn("[Firestore] Subscription warning:", err);
+        console.warn("[Firestore] Document subscription warning:", err);
       }
     );
+    unsubscribers.push(unsubDoc);
   } catch (e) {
     console.warn("[Firestore] Subscription init error:", e);
-    return () => {};
   }
+
+  return () => {
+    unsubscribers.forEach((fn) => fn());
+  };
 }
 
 // Set up window network listeners

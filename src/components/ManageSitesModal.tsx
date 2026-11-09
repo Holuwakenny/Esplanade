@@ -102,8 +102,8 @@ export const ManageSitesModal: React.FC<ManageSitesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in duration-150 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs touch-pan-y">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in duration-150 max-h-[88dvh] sm:max-h-[85vh] flex flex-col my-auto">
         {/* Header */}
         <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -124,7 +124,7 @@ export const ManageSitesModal: React.FC<ManageSitesModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto space-y-6 text-xs sm:text-sm">
+        <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain flex-1 min-h-0 touch-pan-y space-y-6 text-xs sm:text-sm">
           {/* Create New Site Form */}
           <form onSubmit={handleCreateSubmit} className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">

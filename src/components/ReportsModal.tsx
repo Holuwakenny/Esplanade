@@ -37,6 +37,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   const [groupBySite, setGroupBySite] = useState<boolean>(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const reportPrintRef = useRef<HTMLDivElement>(null);
+  const reportCaptureWrapperRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
@@ -238,16 +239,39 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
 
     try {
       const container = reportPrintRef.current;
+      const wrapper = reportCaptureWrapperRef.current;
+
+      // Position capture wrapper in active layout space behind views so html2canvas computes non-zero dimensions
+      if (wrapper) {
+        wrapper.style.left = "0px";
+        wrapper.style.top = "0px";
+        wrapper.style.zIndex = "-9999";
+        wrapper.style.opacity = "1";
+        wrapper.style.pointerEvents = "none";
+      }
+
       container.style.display = "block";
 
-      const containerHeight = container.clientHeight || 1200;
-      const targetScale = containerHeight > 3000 ? 1.2 : 1.5;
+      // Preload all image assets inside container to ensure high-fidelity canvas capture
+      const images = Array.from(container.querySelectorAll<HTMLImageElement>("img"));
+      await Promise.all(
+        images.map(
+          (img: HTMLImageElement) =>
+            new Promise<void>((resolve) => {
+              if (img.complete && img.naturalHeight > 0) return resolve();
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            })
+        )
+      );
 
       const canvas = await html2canvas(container, {
-        scale: targetScale,
+        scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: "#ffffff",
+        windowWidth: 850,
         onclone: (clonedDoc) => {
           const styles = clonedDoc.querySelectorAll("style");
           styles.forEach((style) => {
@@ -266,9 +290,13 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         },
       });
 
-      container.style.display = "none";
+      // Restore wrapper to off-screen
+      if (wrapper) {
+        wrapper.style.left = "-9999px";
+        wrapper.style.opacity = "0";
+      }
 
-      const imgData = canvas.toDataURL("image/jpeg", 0.85);
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -284,7 +312,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
       pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
-      while (heightLeft >= 0) {
+      while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
@@ -295,10 +323,11 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
       canvas.width = 0;
       canvas.height = 0;
 
-      const fileName = `${selectedSites.length === siteNames.length ? "All_Sites" : selectedSites.join("_")}_${reportPeriod.toUpperCase()}_Report_${selectedDate}.pdf`;
+      const safeSiteStr = selectedSites.length === siteNames.length ? "All_Sites" : selectedSites.join("_").replace(/[^a-zA-Z0-9_-]/g, "");
+      const fileName = `${safeSiteStr}_${reportPeriod.toUpperCase()}_Report_${selectedDate}.pdf`;
       pdf.save(fileName);
     } catch (err) {
-      console.error("Report PDF export failed:", err);
+      console.error("Report PDF export failed, attempting browser print fallback:", err);
       window.print();
     } finally {
       setIsGeneratingPdf(false);
@@ -306,10 +335,10 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs print:p-0 print:bg-white print:static">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl overflow-hidden animate-in fade-in duration-150 max-h-[92vh] flex flex-col print:shadow-none print:border-none print:max-h-none print:w-full">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs touch-pan-y print:p-0 print:bg-white print:static">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden animate-in fade-in duration-150 max-h-[88dvh] sm:max-h-[85vh] flex flex-col my-auto print:shadow-none print:border-none print:max-h-none print:w-full">
         {/* Header - Hidden in Print */}
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between shrink-0 border-b border-slate-800 print:hidden">
+        <div className="bg-slate-900 text-white px-5 py-3.5 sm:py-4 flex items-center justify-between shrink-0 border-b border-slate-800 print:hidden">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
               <FileText className="w-4 h-4 text-white" />
@@ -554,7 +583,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         </div>
 
         {/* Printable Report Content Body */}
-        <div id="printable-report-doc" className="p-6 overflow-y-auto space-y-6 text-sm print:p-0 print:overflow-visible">
+        <div id="printable-report-doc" className="p-4 sm:p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 touch-pan-y space-y-6 text-xs sm:text-sm print:p-0 print:overflow-visible">
           {/* Printable Report Title Header */}
           <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
             <div>
@@ -920,18 +949,18 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                         {sSec.items.map((item) =>
                           (item.photos || []).map((photoUrl, pIdx) => (
                             <div
                               key={`${item.id}-${pIdx}`}
-                              className="border border-slate-200 rounded-xl p-3 bg-white shadow-2xs space-y-2"
+                              className="border border-slate-200 rounded-xl p-3 sm:p-4 bg-white shadow-2xs space-y-2.5 hover:shadow-xs transition-shadow"
                             >
-                              <div className="h-44 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
+                              <div className="w-full h-56 sm:h-64 bg-slate-100/80 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
                                 <img
                                   src={photoUrl}
                                   alt={`Evidence Photo ${pIdx + 1}`}
-                                  className="max-h-full max-w-full object-contain"
+                                  className="w-full h-full object-cover sm:object-contain rounded-md"
                                 />
                               </div>
                               <div className="text-xs space-y-1 text-slate-800">
@@ -947,7 +976,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                                 </div>
                                 <p className="text-slate-800 font-medium">Work: {item.work}</p>
                                 {item.notes && (
-                                  <p className="text-slate-600 italic bg-slate-50 p-1.5 rounded border border-slate-200 text-[11px]">
+                                  <p className="text-slate-600 italic bg-slate-50 p-2 rounded border border-slate-200 text-[11px]">
                                     Notes: "{item.notes}"
                                   </p>
                                 )}
@@ -960,18 +989,18 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                   ))
               ) : (
                 /* Flat Unified Grid */
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                   {allFilteredItems.map((item) =>
                     (item.photos || []).map((photoUrl, pIdx) => (
                       <div
                         key={`${item.id}-${pIdx}`}
-                        className="border border-slate-200 rounded-xl p-3 bg-white shadow-2xs space-y-2"
+                        className="border border-slate-200 rounded-xl p-3 sm:p-4 bg-white shadow-2xs space-y-2.5 hover:shadow-xs transition-shadow"
                       >
-                        <div className="h-44 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
+                        <div className="w-full h-56 sm:h-64 bg-slate-100/80 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
                           <img
                             src={photoUrl}
                             alt={`Evidence Photo ${pIdx + 1}`}
-                            className="max-h-full max-w-full object-contain"
+                            className="w-full h-full object-cover sm:object-contain rounded-md"
                           />
                         </div>
                         <div className="text-xs space-y-1 text-slate-800">
@@ -984,7 +1013,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                           </div>
                           <p className="text-slate-800 font-medium">Work: {item.work}</p>
                           {item.notes && (
-                            <p className="text-slate-600 italic bg-slate-50 p-1.5 rounded border border-slate-200 text-[11px]">
+                            <p className="text-slate-600 italic bg-slate-50 p-2 rounded border border-slate-200 text-[11px]">
                               Notes: "{item.notes}"
                             </p>
                           )}
@@ -1041,7 +1070,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
       </div>
 
       {/* Hidden Printable Container for html2canvas Capture */}
-      <div className="fixed top-0 left-[-9999px] pointer-events-none opacity-0">
+      <div ref={reportCaptureWrapperRef} className="fixed top-0 left-[-9999px] pointer-events-none opacity-0">
         <div
           ref={reportPrintRef}
           style={{ width: "850px", padding: "36px", backgroundColor: "#ffffff", fontFamily: "sans-serif", color: "#000000", lineHeight: "1.5" }}
@@ -1297,11 +1326,11 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                                   pageBreakInside: "avoid"
                                 }}
                               >
-                                <div style={{ height: "170px", backgroundColor: "#f8fafc", borderRadius: "4px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #000000", marginBottom: "8px" }}>
+                                <div style={{ height: "240px", backgroundColor: "#f8fafc", borderRadius: "6px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #000000", marginBottom: "8px" }}>
                                   <img
                                     src={photoUrl}
                                     alt={`Evidence Photo ${pIdx + 1}`}
-                                    style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                                    style={{ maxHeight: "240px", maxWidth: "100%", width: "100%", objectFit: "contain" }}
                                   />
                                 </div>
                                 <div style={{ fontSize: "10px", lineHeight: "1.4", color: "#000000" }}>
@@ -1342,11 +1371,11 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                           pageBreakInside: "avoid"
                         }}
                       >
-                        <div style={{ height: "180px", backgroundColor: "#f8fafc", borderRadius: "4px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #000000", marginBottom: "10px" }}>
+                        <div style={{ height: "240px", backgroundColor: "#f8fafc", borderRadius: "6px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #000000", marginBottom: "10px" }}>
                           <img
                             src={photoUrl}
                             alt={`Evidence Photo ${pIdx + 1}`}
-                            style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                            style={{ maxHeight: "240px", maxWidth: "100%", width: "100%", objectFit: "contain" }}
                           />
                         </div>
                         <div style={{ fontSize: "11px", lineHeight: "1.4", color: "#000000" }}>

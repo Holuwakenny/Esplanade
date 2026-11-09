@@ -41,6 +41,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const [sortBy, setSortBy] = useState<"site" | "priority" | "floor" | "trade">("site");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const printContainerRef = useRef<HTMLDivElement>(null);
+  const printCaptureWrapperRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
@@ -133,18 +134,39 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
     try {
       const container = printContainerRef.current;
-      
-      // Temporarily reveal container for canvas capture
+      const wrapper = printCaptureWrapperRef.current;
+
+      // Position capture wrapper in active layout space behind views so html2canvas computes non-zero dimensions
+      if (wrapper) {
+        wrapper.style.left = "0px";
+        wrapper.style.top = "0px";
+        wrapper.style.zIndex = "-9999";
+        wrapper.style.opacity = "1";
+        wrapper.style.pointerEvents = "none";
+      }
+
       container.style.display = "block";
-      
-      const containerHeight = container.clientHeight || 1200;
-      const targetScale = containerHeight > 3000 ? 1.2 : 1.5;
+
+      // Preload images inside container to ensure high-fidelity canvas capture
+      const images = Array.from(container.querySelectorAll<HTMLImageElement>("img"));
+      await Promise.all(
+        images.map(
+          (img: HTMLImageElement) =>
+            new Promise<void>((resolve) => {
+              if (img.complete && img.naturalHeight > 0) return resolve();
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            })
+        )
+      );
 
       const canvas = await html2canvas(container, {
-        scale: targetScale,
+        scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: "#ffffff",
+        windowWidth: 850,
         onclone: (clonedDoc) => {
           // Replace any remaining oklch color declarations with sharp fallback colors
           const styles = clonedDoc.querySelectorAll("style");
@@ -164,9 +186,13 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         },
       });
 
-      container.style.display = "none";
+      // Restore wrapper offscreen
+      if (wrapper) {
+        wrapper.style.left = "-9999px";
+        wrapper.style.opacity = "0";
+      }
 
-      const imgData = canvas.toDataURL("image/jpeg", 0.85);
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -182,7 +208,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
-      while (heightLeft >= 0) {
+      while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
@@ -204,10 +230,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-2xs overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl my-auto overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-3 bg-slate-900/60 backdrop-blur-xs touch-pan-y">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[88dvh] sm:max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in fade-in duration-150">
         {/* Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-600/30 rounded-lg border border-indigo-400/30">
               <FileDown className="w-5 h-5 text-indigo-300" />
@@ -226,7 +252,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         </div>
 
         {/* Modal Form Content */}
-        <div className="p-6 space-y-5 text-sm">
+        <div className="p-4 sm:p-6 space-y-5 text-sm overflow-y-auto overscroll-contain flex-1 min-h-0 touch-pan-y">
           {/* Summary Preview Banner */}
           <div className="bg-indigo-50/80 border border-indigo-200/80 rounded-xl p-4 flex items-center justify-between">
             <div className="space-y-0.5">
@@ -355,7 +381,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       </div>
 
       {/* Hidden Printable HTML Container for Html2Canvas Capture */}
-      <div className="fixed top-0 left-[-9999px] pointer-events-none opacity-0">
+      <div ref={printCaptureWrapperRef} className="fixed top-0 left-[-9999px] pointer-events-none opacity-0">
         <div
           ref={printContainerRef}
           style={{ width: "850px", padding: "36px", backgroundColor: "#ffffff", fontFamily: "sans-serif", lineHeight: "1.5" }}
@@ -515,11 +541,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                                 key={`${row.item.id}-${pIdx}`}
                                 className="border border-black rounded-lg p-3 bg-white space-y-2 break-inside-avoid"
                               >
-                                <div className="h-44 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
+                                <div className="h-60 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
                                   <img
                                     src={photoUrl}
                                     alt={`Evidence Photo ${pIdx + 1}`}
-                                    className="max-h-full max-w-full object-contain"
+                                    className="max-h-full max-w-full w-full h-full object-contain"
                                   />
                                 </div>
                                 <div className="text-xs space-y-1 bg-white p-2 rounded border border-black leading-normal">
@@ -555,11 +581,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                         key={`${row.item.id}-${pIdx}`}
                         className="border border-black rounded-lg p-3 bg-white space-y-2 break-inside-avoid"
                       >
-                        <div className="h-48 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
+                        <div className="h-60 bg-slate-100 rounded overflow-hidden flex items-center justify-center border border-black">
                           <img
                             src={photoUrl}
                             alt={`Evidence Photo ${pIdx + 1}`}
-                            className="max-h-full max-w-full object-contain"
+                            className="max-h-full max-w-full w-full h-full object-contain"
                           />
                         </div>
                         <div className="text-xs space-y-1.5 bg-white p-2.5 rounded border border-black leading-normal">

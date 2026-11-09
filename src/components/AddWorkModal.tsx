@@ -131,8 +131,8 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-2xs overflow-hidden">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col my-auto overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs touch-pan-y">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[88dvh] sm:max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in fade-in duration-150">
         {/* Fixed Header */}
         <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
@@ -148,7 +148,7 @@ export const AddWorkModal: React.FC<AddWorkModalProps> = ({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs sm:text-sm">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-4 sm:p-5 space-y-4 text-xs sm:text-sm">
           {/* Site / Category Selector & Manual Input */}
           <div>
             <label className="block font-bold text-slate-800 mb-1 flex items-center justify-between">

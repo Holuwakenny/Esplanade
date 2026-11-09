@@ -309,7 +309,7 @@ export default function App() {
     [sitesData, persistAllSites]
   );
 
-  // Fetch initial dataset
+  // Fetch initial dataset from local backend proxy
   const fetchData = useCallback(async () => {
     setIsSyncing(true);
     try {
@@ -320,7 +320,8 @@ export default function App() {
         if (serverData && typeof serverData === "object" && Object.keys(serverData).length > 0) {
           setSitesData((prev) => {
             const cached = getCachedSitesData();
-            const merged = mergeSitesMaps(serverData, cached || prev);
+            // Server data acts as baseline seed; local cache and active state have higher precedence
+            const merged = mergeSitesMaps(cached || prev, serverData);
             saveToLocalCache(merged);
             return merged;
           });
@@ -347,14 +348,14 @@ export default function App() {
     // Flush offline queue on mount if internet connection is restored
     flushOfflineQueue();
 
+    // Real-time bidirectional subscription across mobile and desktop
     const unsubscribeData = subscribeToFirestore((cloudSites) => {
-      // Protect local user typing/edits from being overwritten by real-time cloud snapshots
-      if (Date.now() - lastLocalUpdateRef.current < 3500) {
-        return;
-      }
       if (cloudSites && Object.keys(cloudSites).length > 0) {
-        setSitesData((prev) => mergeSitesMaps(cloudSites, prev));
-        saveToLocalCache(cloudSites);
+        setSitesData((prev) => {
+          const merged = mergeSitesMaps(cloudSites, prev);
+          saveToLocalCache(merged);
+          return merged;
+        });
       }
     });
 

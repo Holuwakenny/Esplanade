@@ -304,31 +304,35 @@ export const ProgressionPaceView: React.FC<ProgressionPaceViewProps> = ({
     return list.sort((a, b) => b.total - b.completed - (a.total - a.completed));
   }, [flattenedItems]);
 
-  // Unit-by-Unit Progression Pace
-  const unitPaceData = useMemo(() => {
-    const unitMap = new Map<
+  // Site-by-Site Progression Pace (Single progress tree per site, replacing unit-by-unit chips)
+  const sitePaceData = useMemo(() => {
+    const siteMap = new Map<
       string,
-      { unit: string; completed: number; outstanding: number; total: number; pct: number }
+      { site: string; completed: number; outstanding: number; total: number; pct: number }
     >();
 
-    filteredItems.forEach((item) => {
-      const uName = item.unitName;
-      if (!unitMap.has(uName)) {
-        unitMap.set(uName, { unit: uName, completed: 0, outstanding: 0, total: 0, pct: 0 });
+    allSitesList.forEach((sName) => {
+      siteMap.set(sName, { site: sName, completed: 0, outstanding: 0, total: 0, pct: 0 });
+    });
+
+    flattenedItems.forEach((item) => {
+      const sName = item.siteName;
+      if (!siteMap.has(sName)) {
+        siteMap.set(sName, { site: sName, completed: 0, outstanding: 0, total: 0, pct: 0 });
       }
-      const rec = unitMap.get(uName)!;
+      const rec = siteMap.get(sName)!;
       rec.total += 1;
       if (item.status === "Completed") rec.completed += 1;
       else rec.outstanding += 1;
     });
 
-    const list = Array.from(unitMap.values());
-    list.forEach((u) => {
-      u.pct = u.total > 0 ? Math.round((u.completed / u.total) * 100) : 0;
+    const list = Array.from(siteMap.values());
+    list.forEach((s) => {
+      s.pct = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
     });
 
     return list.sort((a, b) => b.pct - a.pct);
-  }, [filteredItems]);
+  }, [allSitesList, flattenedItems]);
 
   return (
     <div className="space-y-6 pb-16 animate-in fade-in duration-200">
@@ -853,52 +857,63 @@ export const ProgressionPaceView: React.FC<ProgressionPaceViewProps> = ({
         </div>
       </div>
 
-      {/* Unit Close-Out Pace & Handover Readiness Table */}
+      {/* Site-by-Site Progression & Handover Readiness */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
               <Building className="w-4 h-4 text-indigo-600" />
-              <span>Unit Handover Readiness & Milestone Progression</span>
+              <span>Site Close-Out & Milestone Progression</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Breakdown of completion pace across units to identify blocks approaching final inspection
+              Overall completion rate and outstanding works across project construction sites
             </p>
           </div>
           <span className="text-xs text-slate-500 font-medium">
-            Sorted by highest completion pace
+            Single progress tracker per site
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {unitPaceData.map((unit) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sitePaceData.map((s) => (
             <div
-              key={unit.unit}
-              className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors"
+              key={s.site}
+              onClick={() => onSelectSite && onSelectSite(s.site)}
+              className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                currentSite === s.site
+                  ? "border-indigo-500 bg-indigo-50/40 shadow-xs ring-1 ring-indigo-500/30"
+                  : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"
+              }`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-extrabold text-sm text-slate-900">{unit.unit}</span>
+                <span className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${currentSite === s.site ? "bg-indigo-600" : "bg-slate-400"}`} />
+                  {s.site}
+                </span>
                 <span
-                  className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                    unit.pct >= 90
+                  className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                    s.pct >= 90
                       ? "bg-emerald-100 text-emerald-800"
-                      : unit.pct >= 50
+                      : s.pct >= 50
                       ? "bg-indigo-100 text-indigo-800"
                       : "bg-amber-100 text-amber-800"
                   }`}
                 >
-                  {unit.pct}%
+                  {s.pct}% Done
                 </span>
               </div>
-              <div className="mt-2 text-xs text-slate-600 flex justify-between">
-                <span>Completed: <strong className="text-emerald-700">{unit.completed}</strong></span>
-                <span>Outstanding: <strong className="text-amber-700">{unit.outstanding}</strong></span>
+              <div className="mt-2.5 text-xs text-slate-600 flex justify-between">
+                <span>Completed: <strong className="text-emerald-700 font-bold">{s.completed}</strong></span>
+                <span>Outstanding: <strong className="text-amber-700 font-bold">{s.outstanding}</strong></span>
+                <span>Total: <strong className="text-slate-800 font-bold">{s.total}</strong></span>
               </div>
-              {/* Unit Mini Bar */}
-              <div className="mt-2 w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+              {/* Site Mini Progress Bar */}
+              <div className="mt-2.5 w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                 <div
-                  className="bg-indigo-600 h-1.5 rounded-full"
-                  style={{ width: `${unit.pct}%` }}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    s.pct >= 90 ? "bg-emerald-600" : s.pct >= 50 ? "bg-indigo-600" : "bg-amber-500"
+                  }`}
+                  style={{ width: `${s.pct}%` }}
                 />
               </div>
             </div>

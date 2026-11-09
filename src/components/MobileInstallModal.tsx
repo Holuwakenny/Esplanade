@@ -58,8 +58,8 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200 touch-pan-y">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[85vh] my-auto">
         {/* Header with GMH Luxury Theme */}
         <div className="bg-gradient-to-r from-[#071D49] via-[#0B2A6B] to-[#071D49] p-5 sm:p-6 text-white relative">
           <button
@@ -143,7 +143,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
         </div>
 
         {/* Tab Content Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-slate-700 dark:text-slate-300 text-sm">
+        <div className="p-5 sm:p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 touch-pan-y space-y-5 text-slate-700 dark:text-slate-300 text-sm">
           {/* iOS Instructions */}
           {activeTab === "ios" && (
             <div className="space-y-4">
